@@ -5,3 +5,5 @@
 @media(max-width:480px){.brand{font-size:25px;gap:10px}.brand small{font-size:10px}.star{font-size:38px}.masthead{padding:18px}.header-right>button{max-width:66px;line-height:1.7;text-align:right}.fields{grid-template-columns:1fr}.phases button{font-size:11px}.tag{font-size:12px;max-width:100%;white-space:normal;overflow-wrap:anywhere}.scenario-bar>button{font-size:12px;gap:6px}.actions .primary,.actions .secondary{flex-basis:100%}.summary-grid>div{padding:12px 10px}.summary-grid strong small{font-size:11px}.tabs{gap:15px}.tabs button{font-size:13px}.flow-footer>div>button{font-size:13px;padding:12px}.site-footer>strong{font-size:22px}}
 
 @media(max-width:480px){.phases button{font-size:13px;line-height:1.6}.phases button span{font-size:16px}.brand small{font-size:12px}.masthead{flex-wrap:wrap;gap:8px}.header-right{margin-left:auto}.scenario-bar>button{font-size:14px}.phases{grid-template-columns:repeat(5,minmax(90px,1fr));overflow-x:auto;padding-bottom:5px}.phases button{min-height:92px}}
+
+.brand-symbol{display:block;width:58px;height:58px;flex-shrink:0}@media(max-width:480px){.brand-symbol{width:46px;height:46px}}
