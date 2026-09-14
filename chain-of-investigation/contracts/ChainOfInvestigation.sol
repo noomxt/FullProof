@@ -2,107 +2,122 @@
 pragma solidity ^0.8.20;
 
 contract ChainOfInvestigation {
-    address public owner;
+    
+    // 1. 역할(지갑 주소) 관리
+    address public admin; 
+    mapping(address => bool) public isPolice;  
+    mapping(address => bool) public isTelecom; 
+    mapping(address => bool) public isCCTV;    
+    
+    mapping(uint256 => address) public caseFamily; 
 
-    // 4상태 매핑: 0:PENDING, 1:SUPPORTED, 2:CONTRADICTED, 3:EXPIRING_SOON
-    enum Status { PENDING, SUPPORTED, CONTRADICTED, EXPIRING_SOON }
+    // 🌟 수정됨: API 응답(4상태)과 온체인 상태 완벽 동기화
+    enum VerificationStatus { PENDING, VERIFIED, MISMATCH, EXPIRING_SOON }
+    enum CaseStatus { OPEN, CLOSED }
+
+    event ProofAnchored(
+        uint256 indexed caseId, 
+        uint256 indexed stepId, 
+        bytes32 claimHash, 
+        bytes32 proofHash, 
+        VerificationStatus status
+    );
 
     struct Step {
-        uint256 stepId;
-        string description;
-        string proofHash;
-        Status status;
-        bool isCompleted;
+        string stepName;      
+        bool isRequired;           
+        VerificationStatus status; 
     }
 
     struct Case {
-        bytes32 caseId;
-        bool exists;
-        bool isClosed;
-        string closeReason;
+        uint256 caseId;
+        CaseStatus status;
         uint256 stepCount;
-        mapping(uint256 => Step) steps;
     }
 
-    mapping(bytes32 => Case) public cases;
-    mapping(address => bool) public isAuthorizedAgency;
+    mapping(uint256 => Case) public cases;
+    mapping(uint256 => mapping(uint256 => Step)) public caseSteps;
 
-    event CaseCreated(bytes32 indexed caseId);
-    event StepAdded(bytes32 indexed caseId, uint256 indexed stepId);
-    event ProofAnchored(bytes32 indexed caseId, uint256 indexed stepId, string proofHash, Status status);
-    event CaseClosed(bytes32 indexed caseId, string reason);
-
-    modifier onlyOwnerOrAgency() {
-        require(msg.sender == owner || isAuthorizedAgency[msg.sender], "Unauthorized");
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "Only Admin can do this");
         _;
     }
 
-    // [문제 2 해결] 종결된 사건은 변경 불가능하도록 차단하는 Modifier
-    modifier onlyActiveCase(bytes32 _caseId) {
-        require(cases[_caseId].exists, "Case does not exist");
-        require(!cases[_caseId].isClosed, "Cannot modify: Case is already closed");
+    // 🌟 수정됨: 사건 종결 후 데이터 변경 원천 차단 (지적 2번 해결)
+    modifier onlyOpen(uint256 _caseId) {
+        require(cases[_caseId].status == CaseStatus.OPEN, "Case is already CLOSED");
         _;
     }
 
     constructor() {
-        owner = msg.sender;
-        isAuthorizedAgency[msg.sender] = true;
+        admin = msg.sender; 
     }
 
-    function registerAgency(address _agency) external {
-        require(msg.sender == owner, "Only owner");
-        isAuthorizedAgency[_agency] = true;
+    function registerAgency(address _agency, string memory _type) public onlyAdmin {
+        if (keccak256(bytes(_type)) == keccak256(bytes("POLICE"))) isPolice[_agency] = true;
+        else if (keccak256(bytes(_type)) == keccak256(bytes("TELECOM"))) isTelecom[_agency] = true;
+        else if (keccak256(bytes(_type)) == keccak256(bytes("CCTV"))) isCCTV[_agency] = true;
     }
 
-    function createCase(bytes32 _caseId) external onlyOwnerOrAgency {
-        require(!cases[_caseId].exists, "Case already exists");
-        Case storage c = cases[_caseId];
-        c.caseId = _caseId;
-        c.exists = true;
-        emit CaseCreated(_caseId);
+    function registerFamilyWallet(uint256 _caseId, address _familyWallet) public onlyOpen(_caseId) {
+        require(isPolice[msg.sender], "Only Police can register family");
+        caseFamily[_caseId] = _familyWallet;
     }
 
-    function addStep(bytes32 _caseId, string memory _description) external onlyOwnerOrAgency onlyActiveCase(_caseId) {
-        Case storage c = cases[_caseId];
-        uint256 newStepId = c.stepCount;
-        c.steps[newStepId] = Step(newStepId, _description, "", Status.PENDING, false);
-        c.stepCount++;
-        emit StepAdded(_caseId, newStepId);
+    function createCase(uint256 _caseId) public {
+        require(isPolice[msg.sender], "Only Police can create case");
+        require(cases[_caseId].stepCount == 0, "Case already exists");
+        cases[_caseId] = Case({ caseId: _caseId, status: CaseStatus.OPEN, stepCount: 0 });
     }
 
-    function anchorProof(
-        bytes32 _caseId,
-        uint256 _stepId,
-        string memory _proofHash,
-        Status _status
-    ) external onlyOwnerOrAgency onlyActiveCase(_caseId) {
-        require(_stepId < cases[_caseId].stepCount, "Step index out of range");
-
-        Step storage s = cases[_caseId].steps[_stepId];
-        s.proofHash = _proofHash;
-        s.status = _status;
-        s.isCompleted = (_status == Status.SUPPORTED);
-
-        emit ProofAnchored(_caseId, _stepId, _proofHash, _status);
-    }
-
-    // [문제 2 해결] 미검증/불일치 STEP이 존재하면 종결 불가 + 관리자/등록기관 전용 종결
-    function closeCase(bytes32 _caseId, string memory _reason) external onlyOwnerOrAgency onlyActiveCase(_caseId) {
-        Case storage c = cases[_caseId];
+    function addStep(uint256 _caseId, string memory _stepName, bool _isRequired) public onlyOpen(_caseId) {
+        require(isPolice[msg.sender], "Only Police can add step");
+        uint256 stepIndex = cases[_caseId].stepCount;
         
-        for (uint256 i = 0; i < c.stepCount; i++) {
-            require(c.steps[i].status != Status.CONTRADICTED, "Cannot close case: Contradicted step exists");
-            require(c.steps[i].status == Status.SUPPORTED, "Cannot close case: Unverified step exists");
-        }
-
-        c.isClosed = true;
-        c.closeReason = _reason;
-        emit CaseClosed(_caseId, _reason);
+        caseSteps[_caseId][stepIndex] = Step({
+            stepName: _stepName,
+            isRequired: _isRequired,
+            status: VerificationStatus.PENDING
+        });
+        cases[_caseId].stepCount++;
     }
 
-    // [문제 4 해결] 온체인 정보 조회를 위한 View 함수
-    function getStepInfo(bytes32 _caseId, uint256 _stepId) external view returns (string memory description, string memory proofHash, Status status, bool isCompleted) {
-        Step storage s = cases[_caseId].steps[_stepId];
-        return (s.description, s.proofHash, s.status, s.isCompleted);
+    // 🌟 수정됨: Admin 대리 앵커링 삭제, 실제 기관 권한 검증 (지적 1번 해결)
+    function anchorProof(
+        uint256 _caseId, 
+        uint256 _stepIndex,
+        bytes32 _claimHash, 
+        bytes32 _proofHash, 
+        VerificationStatus _result
+    ) public onlyOpen(_caseId) {
+        // 증명 주체(원천기관)가 맞는지 확인
+        require(isPolice[msg.sender] || isTelecom[msg.sender] || isCCTV[msg.sender], "Not an authorized agency");
+        
+        caseSteps[_caseId][_stepIndex].status = _result;
+        
+        emit ProofAnchored(_caseId, _stepIndex, _claimHash, _proofHash, _result);
+    }
+
+    function closeCase(uint256 _caseId) public onlyOpen(_caseId) onlyAdmin {
+        uint256 count = cases[_caseId].stepCount;
+        for (uint256 i = 0; i < count; i++) {
+            if (caseSteps[_caseId][i].isRequired) {
+                require(
+                    caseSteps[_caseId][i].status == VerificationStatus.VERIFIED,
+                    "Cannot close: All required steps must be VERIFIED"
+                );
+            }
+        }
+        cases[_caseId].status = CaseStatus.CLOSED;
+    }
+
+    // 🌟 수정됨: 서버 메모리 초기화 시 온체인 데이터로 사건 복구 지원 (지적 4번 해결)
+    function getCaseAllSteps(uint256 _caseId) public view returns (Step[] memory) {
+        uint256 count = cases[_caseId].stepCount;
+        Step[] memory steps = new Step[](count);
+        for (uint256 i = 0; i < count; i++) {
+            steps[i] = caseSteps[_caseId][i];
+        }
+        return steps;
     }
 }
