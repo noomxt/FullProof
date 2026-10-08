@@ -1,116 +1,106 @@
+"""FullProof API — upgraded ChainOfInvestigation integration.
+
+Local demonstration only. Proofs must be signed externally by registered agency
+signers; this server never fabricates an agency signature.
+"""
+import hashlib
 import json
 import os
-import hashlib
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Optional
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, Field
 from web3 import Web3
-from eth_account.messages import encode_defunct
-from dotenv import load_dotenv
+from eth_account.messages import encode_typed_data
 
 load_dotenv()
-
-# [문제 1 해결] AI 모듈 미설치/누락 시 서버 다운을 방지하는 안전 폴백
 try:
     from ai_engine import parse_claim_with_llm, verify_claim_vs_proof, get_family_progress_from_backend
+    AI_AVAILABLE = True
 except ImportError:
-    def parse_claim_with_llm(raw_text: str) -> dict:
-        return {"parsed_claim": raw_text, "timestamp": "2026-09-14"}
-    
-    def verify_claim_vs_proof(claim: dict, proof: dict, deadline: str):
-        return "VERIFIED", "정상 검증 완료 (Audit Fallback Mode)"
+    AI_AVAILABLE = False
+    def get_family_progress_from_backend(case_id):
+        return {"case_id": case_id, "status": "UNAVAILABLE", "message": "AI module unavailable"}
 
-    def get_family_progress_from_backend(case_id: str):
-        return {"case_id": case_id, "progress_percentage": 100, "status": "IN_PROGRESS"}
-
-app = FastAPI(title="FullProof API", version="1.1.0")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_origin_regex=r"https://.*\.github\.io",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
+app = FastAPI(title="FullProof API", version="2.0.0")
+app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+ROOT = Path(__file__).resolve().parent
+ABI_PATH = ROOT / "artifacts/contracts/ChainOfInvestigation.sol/ChainOfInvestigation.json"
 w3 = Web3(Web3.HTTPProvider(os.getenv("RPC_URL", "http://127.0.0.1:8545")))
-CONTRACT_ADDRESS = os.getenv("CONTRACT_ADDRESS", "0x5FbDB2315678afecb367f032d93F642f64180aa3")
-ABI_PATH = os.path.join("artifacts", "contracts", "ChainOfInvestigation.sol", "ChainOfInvestigation.json")
-
+CONTRACT_ADDRESS = os.getenv("CONTRACT_ADDRESS", "")
 contract = None
-try:
-    if os.path.exists(ABI_PATH):
-        with open(ABI_PATH, "r") as f:
-            contract_json = json.load(f)
-            contract_abi = contract_json["abi"]
-        contract = w3.eth.contract(address=Web3.to_checksum_address(CONTRACT_ADDRESS), abi=contract_abi)
-except Exception as e:
-    print(f"⚠️ ABI 로드 실패: {e}")
+if ABI_PATH.exists() and CONTRACT_ADDRESS:
+    with ABI_PATH.open(encoding="utf-8") as f:
+        contract = w3.eth.contract(address=Web3.to_checksum_address(CONTRACT_ADDRESS), abi=json.load(f)["abi"])
 
+STATUS = {"PENDING": 0, "VERIFIED": 1, "SUPPORTED": 1, "MISMATCH": 2, "CONTRADICTED": 2, "EXPIRING_SOON": 3}
+STATUS_REVERSE = {0: "PENDING", 1: "VERIFIED", 2: "MISMATCH", 3: "EXPIRING_SOON"}
+PROOF_TYPES = {"Proof": [
+    {"name": "caseId", "type": "uint256"}, {"name": "stepId", "type": "uint256"},
+    {"name": "claimHash", "type": "bytes32"}, {"name": "proofHash", "type": "bytes32"},
+    {"name": "result", "type": "uint8"}, {"name": "evidenceTimestamp", "type": "uint64"},
+    {"name": "nonce", "type": "uint256"}, {"name": "deadline", "type": "uint64"},
+    {"name": "agency", "type": "address"},
+]}
 cases_db = {}
 
-def map_ai_status_to_contract_enum(ai_status: str) -> int:
-    status_map = {
-        "PENDING": 0,
-        "VERIFIED": 1,
-        "SUPPORTED": 1,
-        "CONTRADICTED": 2,
-        "MISMATCH": 2,
-        "EXPIRING_SOON": 3
-    }
-    return status_map.get(ai_status.upper(), 0)
+def require_chain():
+    if not contract or not w3.is_connected() or not w3.eth.get_code(contract.address):
+        raise HTTPException(503, "Blockchain unavailable, contract not deployed, or ABI/address not configured")
 
-def map_contract_enum_to_str(enum_val: int) -> str:
-    reverse_map = {0: "PENDING", 1: "VERIFIED", 2: "MISMATCH", 3: "EXPIRING_SOON"}
-    return reverse_map.get(enum_val, "PENDING")
+def sender():
+    accounts = w3.eth.accounts
+    if not accounts:
+        raise HTTPException(503, "No unlocked local transaction account available")
+    return accounts[0]
 
-# [문제 2 해결] 문자열/숫자형 사건 ID를 온체인 uint256 호환 형태로 변환
-def get_uint256_case_id(case_id_str: str) -> int:
-    if case_id_str.isdigit():
-        return int(case_id_str)
-    return int(hashlib.sha256(case_id_str.encode()).hexdigest(), 16) % (2**256)
+def confirmed(tx):
+    receipt = w3.eth.wait_for_transaction_receipt(tx, timeout=120)
+    if receipt.status != 1:
+        raise HTTPException(400, "Blockchain transaction reverted")
+    return tx.hex()
 
-def to_bytes32(val) -> bytes:
-    if isinstance(val, bytes) and len(val) == 32:
-        return val
-    if isinstance(val, str):
-        if val.startswith("0x"):
-            val = val[2:]
-        if len(val) == 64:
-            return bytes.fromhex(val)
-        return hashlib.sha256(val.encode()).digest()
-    return hashlib.sha256(json.dumps(val, sort_keys=True).encode()).digest()
+def case_uint(case_id: str):
+    return int(case_id) if case_id.isdigit() else int(hashlib.sha256(case_id.encode()).hexdigest(), 16)
 
-# [문제 2 해결] isAuthorizedAgency 온체인 검증 지원
-def verify_proof_signature(proof: dict) -> bool:
-    signature = proof.get("signature")
-    issuer_address = proof.get("issuer_address")
-    
-    if not signature or not issuer_address:
-        return False
-    
-    try:
-        proof_data = {k: v for k, v in proof.items() if k != "signature"}
-        message_str = json.dumps(proof_data, sort_keys=True)
-        message = encode_defunct(text=message_str)
-        
-        recovered_address = w3.eth.account.recover_message(message, signature=signature)
-        
-        if recovered_address.lower() != issuer_address.lower():
-            return False
-            
-        if contract and w3.is_connected():
-            return contract.functions.isAuthorizedAgency(Web3.to_checksum_address(recovered_address)).call()
-        return True
-    except Exception:
-        return False
+def canonical_hash(obj):
+    return Web3.keccak(text=json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str))
 
-# Pydantic Schemas
+def parse_timestamp(value):
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return int(datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=timezone.utc).timestamp()) if "+" not in value and "Z" not in value else int(datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp())
+    raise ValueError("Timestamp must be Unix seconds or ISO8601")
+
+def validate_proof(request, signature):
+    require_chain()
+    agency = Web3.to_checksum_address(request["agency"])
+    if not contract.functions.isAuthorizedAgency(agency).call():
+        raise ValueError("Agency is not authorized")
+    if int(request["deadline"]) <= w3.eth.get_block("latest")["timestamp"]:
+        raise ValueError("Signature expired")
+    if int(request["nonce"]) != contract.functions.agencyNonces(agency).call():
+        raise ValueError("Invalid or used nonce")
+    domain = {"name": "FullProof", "version": "1", "chainId": w3.eth.chain_id, "verifyingContract": contract.address}
+    message = encode_typed_data(domain_data=domain, message_types=PROOF_TYPES, message_data=request)
+    recovered = w3.eth.account.recover_message(message, signature=signature)
+    # The contract checks whether recovered is the agency's authorized signer.
+    onchain_recovered = contract.functions.recoverProofSigner(tuple(request[k] for k in ["caseId", "stepId", "claimHash", "proofHash", "result", "evidenceTimestamp", "nonce", "deadline", "agency"]), signature).call()
+    if recovered.lower() != onchain_recovered.lower():
+        raise ValueError("Signature recovery mismatch")
+    return recovered
+
 class CaseCreateSchema(BaseModel):
     case_id: str
-    title: Optional[str] = "신규 수사 사건"
+    title: str = "신규 수사 사건"
 
 class StepCreateSchema(BaseModel):
     step_name: str
@@ -118,55 +108,18 @@ class StepCreateSchema(BaseModel):
 
 class VerifyRequestSchema(BaseModel):
     case_id: str
-    step_id: int
+    step_id: int = Field(ge=0)
     raw_claim_text: str
     proof: dict
     evidence_deadline: str = "2026-12-31 23:59:59"
+    agency: str
+    signature: str
+    nonce: int = Field(ge=0)
+    deadline: int = Field(gt=0)
+    evidence_timestamp: int = Field(ge=0)
 
 class CloseCaseSchema(BaseModel):
     reason: str = "수사 완료"
-
-# [문제 6 해결] 수정된 이벤트(CaseCreated) 및 ABI로 데이터 복구
-@app.on_event("startup")
-def sync_cases_from_blockchain():
-    if not contract or not w3.is_connected():
-        return
-    try:
-        case_created_events = contract.events.CaseCreated.get_logs(fromBlock=0)
-        for event in case_created_events:
-            case_id_uint = event.args.caseId
-            case_id_str = str(case_id_uint)
-            
-            onchain_case = contract.functions.cases(case_id_uint).call()
-            step_count = onchain_case[2]
-            
-            steps = []
-            for i in range(step_count):
-                step_info = contract.functions.getStepInfo(case_id_uint, i).call()
-                steps.append({
-                    "step_id": i,
-                    "step_name": step_info[0],
-                    "claim_hash": step_info[1].hex(),
-                    "proof_hash": step_info[2].hex(),
-                    "status": map_contract_enum_to_str(step_info[3]),
-                    "is_completed": step_info[4],
-                    "is_required": step_info[5],
-                    "tx_hash": event.transactionHash.hex()
-                })
-            
-            cases_db[case_id_str] = {
-                "case_id": case_id_str,
-                "title": f"복구된 사건 #{case_id_str}",
-                "is_closed": (onchain_case[1] == 1),
-                "close_reason": onchain_case[4],
-                "step_count": step_count,
-                "steps": steps,
-                "tx_hash": event.transactionHash.hex()
-            }
-    except Exception as e:
-        print(f"⚠️ 온체인 데이터 복구 경고: {e}")
-
-# [문제 3 해결] 삭제되었던 RESTful API 전체 복구
 
 @app.get("/api/v1/cases")
 def get_all_cases():
@@ -174,162 +127,111 @@ def get_all_cases():
 
 @app.post("/api/v1/cases", status_code=status.HTTP_201_CREATED)
 def create_case(data: CaseCreateSchema):
+    require_chain()
     if data.case_id in cases_db:
-        raise HTTPException(status_code=400, detail="Case already exists")
-    
-    tx_hash_str = ""
-    if contract and w3.is_connected():
-        try:
-            admin_account = w3.eth.accounts[0]
-            case_uint = get_uint256_case_id(data.case_id)
-            tx_hash = contract.functions.createCase(case_uint).transact({'from': admin_account})
-            w3.eth.wait_for_transaction_receipt(tx_hash)
-            tx_hash_str = tx_hash.hex()
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"On-chain createCase failed: {str(e)}")
-
-    cases_db[data.case_id] = {
-        "case_id": data.case_id,
-        "title": data.title,
-        "is_closed": False,
-        "close_reason": "",
-        "step_count": 0,
-        "steps": [],
-        "tx_hash": tx_hash_str
-    }
-    return cases_db[data.case_id]
+        raise HTTPException(400, "Case already exists")
+    try:
+        tx = confirmed(contract.functions.createCase(case_uint(data.case_id)).transact({"from": sender()}))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, f"On-chain createCase failed: {e}")
+    record = {"case_id": data.case_id, "title": data.title, "is_closed": False, "close_reason": "", "step_count": 0, "steps": [], "tx_hash": tx}
+    cases_db[data.case_id] = record
+    return record
 
 @app.get("/api/v1/cases/{case_id}")
 def get_case_detail(case_id: str):
     if case_id not in cases_db:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(404, "Case not found")
     return cases_db[case_id]
 
 @app.post("/api/v1/cases/{case_id}/steps")
-def add_case_step(case_id: str, step_data: StepCreateSchema):
-    if case_id not in cases_db:
-        raise HTTPException(status_code=404, detail="Case not found")
-    
-    case = cases_db[case_id]
-    if case.get("is_closed", False):
-        raise HTTPException(status_code=400, detail="Cannot modify closed case")
-    
-    step_id = case["step_count"]
-    tx_hash_str = ""
-    
-    if contract and w3.is_connected():
-        try:
-            admin_account = w3.eth.accounts[0]
-            case_uint = get_uint256_case_id(case_id)
-            tx_hash = contract.functions.addStep(case_uint, step_data.step_name, step_data.is_required).transact({'from': admin_account})
-            w3.eth.wait_for_transaction_receipt(tx_hash)
-            tx_hash_str = tx_hash.hex()
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"On-chain addStep failed: {str(e)}")
-
-    new_step = {
-        "step_id": step_id,
-        "step_name": step_data.step_name,
-        "claim_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-        "proof_hash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-        "status": "PENDING",
-        "is_completed": False,
-        "is_required": step_data.is_required,
-        "tx_hash": tx_hash_str
-    }
-    
-    case["steps"].append(new_step)
-    case["step_count"] += 1
-    return new_step
+def add_case_step(case_id: str, data: StepCreateSchema):
+    require_chain()
+    case = cases_db.get(case_id)
+    if not case:
+        raise HTTPException(404, "Case not found")
+    if case["is_closed"]:
+        raise HTTPException(400, "Cannot modify closed case")
+    try:
+        tx = confirmed(contract.functions.addStep(case_uint(case_id), data.step_name, data.is_required).transact({"from": sender()}))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, f"On-chain addStep failed: {e}")
+    step = {"step_id": len(case["steps"]), "step_name": data.step_name, "claim_hash": "0x" + "00" * 32, "proof_hash": "0x" + "00" * 32, "status": "PENDING", "is_completed": False, "is_required": data.is_required, "tx_hash": tx}
+    case["steps"].append(step)
+    case["step_count"] = len(case["steps"])
+    return step
 
 @app.post("/api/v1/cases/verify")
 def verify_and_anchor_step(data: VerifyRequestSchema):
-    if data.case_id not in cases_db:
-        raise HTTPException(status_code=404, detail="Case not found")
-    
-    case = cases_db[data.case_id]
-    if case.get("is_closed", False):
-        raise HTTPException(status_code=400, detail="Cannot modify closed case")
-
-    if not verify_proof_signature(data.proof):
-        raise HTTPException(
-            status_code=400, 
-            detail="Invalid Proof: Missing or unauthorized agency digital signature"
-        )
-
+    require_chain()
+    case = cases_db.get(data.case_id)
+    if not case:
+        raise HTTPException(404, "Case not found")
+    if case["is_closed"]:
+        raise HTTPException(400, "Cannot modify closed case")
     if data.step_id >= len(case["steps"]):
-        raise HTTPException(status_code=400, detail="Step index out of bounds")
-
+        raise HTTPException(400, "Step index out of bounds")
+    if not AI_AVAILABLE:
+        raise HTTPException(503, "AI engine missing: cannot automatically mark proof VERIFIED")
     try:
         claim = parse_claim_with_llm(data.raw_claim_text)
-        ai_status, reason_text = verify_claim_vs_proof(claim, data.proof, data.evidence_deadline)
-
-        claim_hash_bytes = to_bytes32(claim)
-        proof_hash_bytes = to_bytes32(data.proof)
-        enum_status = map_ai_status_to_contract_enum(ai_status)
-
-        tx_hash_str = ""
-        if contract and w3.is_connected():
-            admin_account = w3.eth.accounts[0]
-            case_uint = get_uint256_case_id(data.case_id)
-
-            # [문제 2 해결] 스마트 컨트랙트 5-인자 규격에 맞춰 호출
-            tx_hash = contract.functions.anchorProof(
-                case_uint,
-                data.step_id,
-                claim_hash_bytes,
-                proof_hash_bytes,
-                enum_status
-            ).transact({'from': admin_account})
-            
-            w3.eth.wait_for_transaction_receipt(tx_hash)
-            tx_hash_str = tx_hash.hex()
-
-        target_step = case["steps"][data.step_id]
-        target_step["claim_hash"] = "0x" + claim_hash_bytes.hex()
-        target_step["proof_hash"] = "0x" + proof_hash_bytes.hex()
-        target_step["status"] = ai_status
-        target_step["is_completed"] = (ai_status in ["VERIFIED", "SUPPORTED"])
-        if tx_hash_str:
-            target_step["tx_hash"] = tx_hash_str
-
-        return {
-            "case_id": data.case_id,
-            "step_id": data.step_id,
-            "status": ai_status,
-            "reason_code": f"RC_{ai_status}_VERIFIED",
-            "reason_detail": reason_text,
-            "claim_hash": "0x" + claim_hash_bytes.hex(),
-            "proof_hash": "0x" + proof_hash_bytes.hex(),
-            "tx_hash": tx_hash_str
-        }
+        ai_status, reason = verify_claim_vs_proof(claim, data.proof, data.evidence_deadline)
+        result = STATUS.get(str(ai_status).upper())
+        if result is None:
+            raise ValueError("Unknown AI verification status")
+        # Signed payload must match the exact canonical bytes the agency signed.
+        claim_hash, proof_hash = canonical_hash(claim), canonical_hash(data.proof)
+        request = {"caseId": case_uint(data.case_id), "stepId": data.step_id, "claimHash": claim_hash, "proofHash": proof_hash, "result": result, "evidenceTimestamp": data.evidence_timestamp, "nonce": data.nonce, "deadline": data.deadline, "agency": Web3.to_checksum_address(data.agency)}
+        recovered = validate_proof(request, data.signature)
+        tx = confirmed(contract.functions.anchorProof(request["caseId"], request["stepId"], claim_hash, proof_hash, result, data.evidence_timestamp, data.deadline, data.nonce, request["agency"], data.signature).transact({"from": sender()}))
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(400, f"Proof validation/anchoring failed: {e}")
+    step = case["steps"][data.step_id]
+    step.update({"claim_hash": Web3.to_hex(claim_hash), "proof_hash": Web3.to_hex(proof_hash), "status": STATUS_REVERSE[result], "is_completed": result == 1, "tx_hash": tx})
+    return {"case_id": data.case_id, "step_id": data.step_id, "status": STATUS_REVERSE[result], "reason_detail": reason, "claim_hash": step["claim_hash"], "proof_hash": step["proof_hash"], "signer": recovered, "tx_hash": tx}
+
+@app.get("/api/v1/cases/{case_id}/steps/{step_id}/proof-history")
+def proof_history(case_id: str, step_id: int):
+    require_chain()
+    if step_id < 0:
+        raise HTTPException(400, "Invalid step ID")
+    try:
+        cid = case_uint(case_id)
+        count = contract.functions.getProofHistoryLength(cid, step_id).call()
+        result = []
+        for i in range(count):
+            record = contract.functions.getProofRecord(cid, step_id, i).call()
+            result.append({"index": i, "raw_record": [Web3.to_hex(v) if isinstance(v, bytes) else v for v in record]})
+        return {"case_id": case_id, "step_id": step_id, "count": count, "history": result}
+    except Exception as e:
+        raise HTTPException(400, f"Proof history unavailable: {e}")
 
 @app.get("/api/v1/cases/{case_id}/family-progress")
 def get_family_progress(case_id: str):
     if case_id not in cases_db:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(404, "Case not found")
     return get_family_progress_from_backend(case_id)
 
 @app.post("/api/v1/cases/{case_id}/close")
 def close_case_endpoint(case_id: str, body: CloseCaseSchema):
-    if case_id not in cases_db:
-        raise HTTPException(status_code=404, detail="Case not found")
-    
-    case = cases_db[case_id]
-    if case.get("is_closed", False):
-        raise HTTPException(status_code=400, detail="Case is already closed")
-
-    if contract and w3.is_connected():
-        try:
-            admin_account = w3.eth.accounts[0]
-            case_uint = get_uint256_case_id(case_id)
-            tx_hash = contract.functions.closeCase(case_uint, body.reason).transact({'from': admin_account})
-            w3.eth.wait_for_transaction_receipt(tx_hash)
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"On-chain closeCase failed: {str(e)}")
-
+    require_chain()
+    case = cases_db.get(case_id)
+    if not case:
+        raise HTTPException(404, "Case not found")
+    if case["is_closed"]:
+        raise HTTPException(400, "Case is already closed")
+    try:
+        tx = confirmed(contract.functions.closeCase(case_uint(case_id), body.reason).transact({"from": sender()}))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, f"On-chain closeCase failed: {e}")
     case["is_closed"] = True
     case["close_reason"] = body.reason
-    return {"status": "SUCCESS", "message": f"Case {case_id} closed successfully"}
+    return {"status": "SUCCESS", "message": f"Case {case_id} closed successfully", "tx_hash": tx}

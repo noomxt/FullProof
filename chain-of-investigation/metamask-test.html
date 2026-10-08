@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FullProof | 관제센터 MetaMask 연결</title>
+
+  <style>
+    body {
+      font-family: Arial, "Malgun Gothic", sans-serif;
+      background: #f6f8fb;
+      color: #162338;
+      margin: 0;
+      padding: 30px;
+    }
+
+    main {
+      max-width: 670px;
+      margin: auto;
+      background: white;
+      border-radius: 18px;
+      padding: 28px;
+      box-shadow: 0 8px 25px #0001;
+    }
+
+    h1 {
+      font-size: 24px;
+    }
+
+    p {
+      line-height: 1.7;
+    }
+
+    button {
+      padding: 12px 17px;
+      border: 0;
+      border-radius: 9px;
+      background: #225bda;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+      margin: 5px 6px 5px 0;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      background: #f1f5f9;
+      border-radius: 9px;
+      padding: 18px;
+      line-height: 1.7;
+    }
+
+    .note {
+      font-size: 14px;
+      color: #475569;
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <h1>FullProof · 관제센터 지갑 연결</h1>
+
+    <p>
+      MetaMask와 Hardhat Local 블록체인 연결을
+      테스트하는 페이지입니다.
+    </p>
+
+    <button id="connect">
+      ① MetaMask 연결
+    </button>
+
+    <button id="switch" disabled>
+      ② Hardhat Local 전환
+    </button>
+
+    <button id="check">
+      ③ 연결 상태 확인
+    </button>
+
+    <pre id="output">
+첫 번째 버튼을 눌러주세요.
+    </pre>
+
+    <p class="note">
+      관제센터 주소:
+      0x24C2715bB8d4c3d85D76105AC5D8EA470445A20A
+    </p>
+
+    <p class="note">
+      Hardhat Chain ID: 31337 (0x7a69)
+    </p>
+  </main>
+
+  <script>
+    // 스마트 컨트랙트에 등록한 관제센터 주소
+    const expected =
+      "0x24C2715bB8d4c3d85D76105AC5D8EA470445A20A"
+      .toLowerCase();
+
+    // Hardhat Local Chain ID
+    const hardhatChainId = "0x7a69";
+
+    const output = document.getElementById("output");
+    const connectButton = document.getElementById("connect");
+    const switchButton = document.getElementById("switch");
+    const checkButton = document.getElementById("check");
+
+    function log(message) {
+      output.textContent = message;
+    }
+
+    // MetaMask 확인
+    function getProvider() {
+      if (!window.ethereum) {
+        throw new Error(
+          "MetaMask가 감지되지 않았습니다. " +
+          "MetaMask가 설치된 브라우저에서 열어주세요."
+        );
+      }
+
+      return window.ethereum;
+    }
+
+    // 연결 상태 확인
+    async function checkStatus() {
+      const provider = getProvider();
+
+      const accounts = await provider.request({
+        method: "eth_accounts"
+      });
+
+      const chainId = await provider.request({
+        method: "eth_chainId"
+      });
+
+      const selectedAccount = accounts[0] || "";
+
+      const accountMatched =
+        selectedAccount.toLowerCase() === expected;
+
+      const chainMatched =
+        chainId.toLowerCase() === hardhatChainId;
+
+      switchButton.disabled = !selectedAccount;
+
+      let message = "";
+
+      message += "연결된 계정: ";
+      message += selectedAccount || "(없음)";
+      message += "\n";
+
+      message += "관제센터 계정 일치: ";
+      message += accountMatched ? "예" : "아니요";
+      message += "\n";
+
+      message += "현재 체인 ID: " + chainId + "\n";
+
+      message += "Hardhat Local 일치: ";
+      message += chainMatched ? "예" : "아니요";
+      message += "\n\n";
+
+      if (accountMatched && chainMatched) {
+        message += "✅ 연결 확인 완료!";
+      } else {
+        message += "연결과 네트워크를 확인해주세요.";
+      }
+
+      log(message);
+    }
+
+    // ① MetaMask 연결
+    connectButton.addEventListener("click", async () => {
+      try {
+        const provider = getProvider();
+
+        const accounts = await provider.request({
+          method: "eth_requestAccounts"
+        });
+
+        if (!accounts.length) {
+          throw new Error("연결된 계정이 없습니다.");
+        }
+
+        switchButton.disabled = false;
+
+        await checkStatus();
+
+      } catch (error) {
+        log("연결 오류: " + error.message);
+      }
+    });
+
+    // ② Hardhat Local 전환
+    switchButton.addEventListener("click", async () => {
+      try {
+        const provider = getProvider();
+
+        try {
+          await provider.request({
+            method: "wallet_switchEthereumChain",
+            params: [
+              {
+                chainId: hardhatChainId
+              }
+            ]
+          });
+
+        } catch (error) {
+
+          // 네트워크가 없는 경우 자동 추가 요청
+          if (error.code === 4902) {
+
+            await provider.request({
+              method: "wallet_addEthereumChain",
+              params: [
+                {
+                  chainId: hardhatChainId,
+                  chainName: "Hardhat Local",
+                  rpcUrls: [
+                    "http://127.0.0.1:8545"
+                  ],
+                  nativeCurrency: {
+                    name: "Ether",
+                    symbol: "ETH",
+                    decimals: 18
+                  }
+                }
+              ]
+            });
+
+            await provider.request({
+              method: "wallet_switchEthereumChain",
+              params: [
+                {
+                  chainId: hardhatChainId
+                }
+              ]
+            });
+
+          } else {
+            throw error;
+          }
+        }
+
+        await checkStatus();
+
+      } catch (error) {
+        log("네트워크 전환 오류: " + error.message);
+      }
+    });
+
+    // ③ 연결 상태 확인
+    checkButton.addEventListener("click", async () => {
+      try {
+        await checkStatus();
+      } catch (error) {
+        log("확인 오류: " + error.message);
+      }
+    });
+
+    // MetaMask 계정 또는 네트워크 변경 감지
+    if (window.ethereum) {
+
+      window.ethereum.on("accountsChanged", () => {
+        checkStatus().catch(console.error);
+      });
+
+      window.ethereum.on("chainChanged", () => {
+        checkStatus().catch(console.error);
+      });
+
+    }
+  </script>
+</body>
+</html>
