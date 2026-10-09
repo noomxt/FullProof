@@ -1,282 +1,392 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FullProof | 관제센터 MetaMask 연결</title>
+  <title>FullProof | 관제센터 전자서명 테스트</title>
 
   <style>
     body {
       font-family: Arial, "Malgun Gothic", sans-serif;
-      background: #f6f8fb;
-      color: #162338;
-      margin: 0;
+      background: #f5f7fb;
+      color: #18243a;
       padding: 30px;
     }
 
     main {
-      max-width: 670px;
+      max-width: 750px;
       margin: auto;
-      background: white;
-      border-radius: 18px;
       padding: 28px;
-      box-shadow: 0 8px 25px #0001;
-    }
-
-    h1 {
-      font-size: 24px;
-    }
-
-    p {
-      line-height: 1.7;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 6px 24px #0001;
     }
 
     button {
-      padding: 12px 17px;
-      border: 0;
-      border-radius: 9px;
-      background: #225bda;
+      display: block;
+      width: 100%;
+      padding: 13px;
+      margin: 12px 0;
+      border: none;
+      border-radius: 8px;
+      background: #245bd6;
       color: white;
-      cursor: pointer;
       font-weight: bold;
-      margin: 5px 6px 5px 0;
+      cursor: pointer;
     }
 
     button:disabled {
-      opacity: 0.5;
+      background: #a0aec0;
       cursor: not-allowed;
     }
 
     pre {
+      background: #eef2f7;
+      padding: 18px;
+      border-radius: 8px;
       white-space: pre-wrap;
       overflow-wrap: anywhere;
-      background: #f1f5f9;
-      border-radius: 9px;
-      padding: 18px;
-      line-height: 1.7;
     }
 
-    .note {
+    .notice {
+      color: #526176;
       font-size: 14px;
-      color: #475569;
+      line-height: 1.7;
     }
   </style>
 </head>
 
 <body>
-  <main>
-    <h1>FullProof · 관제센터 지갑 연결</h1>
+<main>
+  <h1>FullProof · CCTV Proof 전자서명</h1>
 
-    <p>
-      MetaMask와 Hardhat Local 블록체인 연결을
-      테스트하는 페이지입니다.
-    </p>
+  <p class="notice">
+    가상 CCTV 증빙자료를 사용한 로컬 블록체인 테스트입니다.
+    AI 검증을 수행하지 않으므로 검증 상태는 PENDING입니다.
+  </p>
 
-    <button id="connect">
-      ① MetaMask 연결
-    </button>
+  <button id="connect">① MetaMask 연결</button>
+  <button id="switch">② Hardhat Local 전환</button>
+  <button id="check">③ 연결 상태 확인</button>
+  <button id="sign">④ CCTV Proof EIP-712 전자서명</button>
 
-    <button id="switch" disabled>
-      ② Hardhat Local 전환
-    </button>
+  <h3>실행 결과</h3>
+  <pre id="output">버튼 ①부터 눌러주세요.</pre>
 
-    <button id="check">
-      ③ 연결 상태 확인
-    </button>
+  <p class="notice">
+    관제센터 지갑:
+    0x24C2715bB8d4c3d85D76105AC5D8EA470445A20A
+  </p>
+</main>
 
-    <pre id="output">
-첫 번째 버튼을 눌러주세요.
-    </pre>
+<script src="./node_modules/ethers/dist/ethers.umd.min.js"></script>
+<script>
+  const AGENCY =
+    "0x24C2715bB8d4c3d85D76105AC5D8EA470445A20A";
 
-    <p class="note">
-      관제센터 주소:
-      0x24C2715bB8d4c3d85D76105AC5D8EA470445A20A
-    </p>
+  const CONTRACT =
+    "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
-    <p class="note">
-      Hardhat Chain ID: 31337 (0x7a69)
-    </p>
-  </main>
+  const CHAIN_ID = "0x7a69";
 
-  <script>
-    // 스마트 컨트랙트에 등록한 관제센터 주소
-    const expected =
-      "0x24C2715bB8d4c3d85D76105AC5D8EA470445A20A"
-      .toLowerCase();
+  const CASE_ID = "FULLPROOF_TEST_001";
+  const STEP_ID = 0;
 
-    // Hardhat Local Chain ID
-    const hardhatChainId = "0x7a69";
+  const output = document.getElementById("output");
 
-    const output = document.getElementById("output");
-    const connectButton = document.getElementById("connect");
-    const switchButton = document.getElementById("switch");
-    const checkButton = document.getElementById("check");
+  function log(message) {
+    output.textContent = message;
+  }
 
-    function log(message) {
-      output.textContent = message;
+  function provider() {
+    if (!window.ethereum) {
+      throw new Error("MetaMask를 찾을 수 없습니다.");
     }
+    return window.ethereum;
+  }
 
-    // MetaMask 확인
-    function getProvider() {
-      if (!window.ethereum) {
+  function showError(error) {
+    log("오류: " + (error.message || String(error)));
+  }
+
+  // Python hashlib.sha256과 동일한 해시 계산
+  async function sha256(text) {
+    const bytes = new TextEncoder().encode(text);
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+
+    const hex = Array.from(new Uint8Array(digest))
+      .map(b => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    return "0x" + hex;
+  }
+
+  async function getWalletStatus() {
+    const p = provider();
+
+    const accounts = await p.request({
+      method: "eth_accounts"
+    });
+
+    const chainId = await p.request({
+      method: "eth_chainId"
+    });
+
+    const account = accounts[0] || "";
+
+    return {
+      account,
+      chainId,
+      accountMatches:
+        account.toLowerCase() === AGENCY.toLowerCase(),
+      chainMatches:
+        chainId.toLowerCase() === CHAIN_ID
+    };
+  }
+
+  // ① MetaMask 연결
+  document.getElementById("connect").onclick = async () => {
+    try {
+      await provider().request({
+        method: "eth_requestAccounts"
+      });
+
+      const status = await getWalletStatus();
+      log(JSON.stringify(status, null, 2));
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  // ② Hardhat Local 전환
+  document.getElementById("switch").onclick = async () => {
+    try {
+      const p = provider();
+
+      try {
+        await p.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: CHAIN_ID }]
+        });
+      } catch (error) {
+        if (error.code !== 4902) throw error;
+
+        await p.request({
+          method: "wallet_addEthereumChain",
+          params: [{
+            chainId: CHAIN_ID,
+            chainName: "Hardhat Local",
+            rpcUrls: ["http://127.0.0.1:8545"],
+            nativeCurrency: {
+              name: "Ether",
+              symbol: "ETH",
+              decimals: 18
+            }
+          }]
+        });
+
+        await p.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: CHAIN_ID }]
+        });
+      }
+
+      log("Hardhat Local 전환 요청 완료");
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  // ③ 연결 상태 확인
+  document.getElementById("check").onclick = async () => {
+    try {
+      const status = await getWalletStatus();
+
+      log(
+        "계정: " + status.account + "\n" +
+        "관제센터 일치: " + status.accountMatches + "\n" +
+        "체인 ID: " + status.chainId + "\n" +
+        "Hardhat 일치: " + status.chainMatches
+      );
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  // ④ EIP-712 전자서명 생성
+  document.getElementById("sign").onclick = async () => {
+    try {
+      const p = provider();
+      const status = await getWalletStatus();
+
+      if (!status.accountMatches) {
         throw new Error(
-          "MetaMask가 감지되지 않았습니다. " +
-          "MetaMask가 설치된 브라우저에서 열어주세요."
+          "관제센터 계정으로 연결해야 합니다."
         );
       }
 
-      return window.ethereum;
+      if (!status.chainMatches) {
+        throw new Error(
+          "먼저 Hardhat Local로 전환해주세요."
+        );
+      }
+
+      // main.py의 사건 ID 변환 방식과 동일
+      const caseHash = await sha256(CASE_ID);
+      const caseUint = BigInt(caseHash).toString();
+
+      // 가상 Claim / Proof 데이터
+      const claimText =
+        "TEST_CLAIM_CCTV_REVIEW_REQUESTED";
+
+      const proofText =
+        "TEST_PROOF_CCTV_REVIEW_RECEIVED";
+
+      const claimHash = await sha256(claimText);
+      const proofHash = await sha256(proofText);
+
+      const now = Math.floor(Date.now() / 1000);
+
+      // 테스트용 nonce: 새 로컬 체인에서 해당 기관의
+      // 첫 Proof 서명인 경우 0
+      const nonce = "0";
+
+      const domain = {
+        name: "FullProof",
+        version: "1",
+        chainId: 31337,
+        verifyingContract: CONTRACT
+      };
+
+      const types = {
+        Proof: [
+          { name: "caseId", type: "uint256" },
+          { name: "stepId", type: "uint256" },
+          { name: "claimHash", type: "bytes32" },
+          { name: "proofHash", type: "bytes32" },
+          { name: "result", type: "uint8" },
+          { name: "evidenceTimestamp", type: "uint64" },
+          { name: "nonce", type: "uint256" },
+          { name: "deadline", type: "uint64" },
+          { name: "agency", type: "address" }
+        ]
+      };
+
+      const message = {
+        caseId: caseUint,
+        stepId: STEP_ID,
+        claimHash: claimHash,
+        proofHash: proofHash,
+        result: 0,   // PENDING: AI 검증 전
+        evidenceTimestamp: now,
+        nonce: nonce,
+        deadline: now + 3600,
+        agency: AGENCY
+      };
+
+      const typedData = {
+        domain,
+        types: {
+          EIP712Domain: [
+            { name: "name", type: "string" },
+            { name: "version", type: "string" },
+            { name: "chainId", type: "uint256" },
+            { name: "verifyingContract", type: "address" }
+          ],
+          ...types
+        },
+        primaryType: "Proof",
+        message
+      };
+
+      log("MetaMask 서명 요청 중...");
+
+      const signature = await p.request({
+        method: "eth_signTypedData_v4",
+        params: [
+          status.account,
+          JSON.stringify(typedData)
+        ]
+      });
+      const recovered = ethers.verifyTypedData(
+        domain,
+        types,
+        message,
+        signature
+      );
+
+      const matches =
+        recovered.toLowerCase() === status.account.toLowerCase();
+
+      console.log("========== MetaMask 즉시 검증 ==========");
+      console.log("서명 요청 계정:", status.account);
+      console.log("복구된 서명자:", recovered);
+      console.log("일치 여부:", matches);
+      console.log("=====================================");
+
+      if (!matches) {
+        log(
+          "❌ MetaMask 서명 즉시 검증 실패\n\n" +
+          "요청 계정: " + status.account + "\n" +
+          "복구 주소: " + recovered + "\n\n" +
+          "원본 서명과 요청 데이터가 일치하지 않습니다."
+        );
+        return;
+      }
+
+      // 다음 단계에서 온체인 전송에 사용할 데이터
+      const result = {
+        case_id: CASE_ID,
+        step_id: STEP_ID,
+        claim_text: claimText,
+        proof_text: proofText,
+        agency: AGENCY,
+        claim_hash: claimHash,
+        proof_hash: proofHash,
+        result: 0,
+        evidence_timestamp: now,
+        nonce: Number(nonce),
+        deadline: now + 3600,
+
+        // 실제 MetaMask에 서명 요청한 계정
+        signing_account: status.account,
+
+        // MetaMask에 전달한 EIP-712 데이터 전체
+        signed_typed_data: typedData,
+
+        signature: signature
+      };
+
+      // 페이지가 열려 있는 동안만 보관
+      window.lastSignedProof = result;
+      
+      const json = JSON.stringify(result, null, 2);
+
+      const blob = new Blob(
+        [json],
+        { type: "application/json" }
+      );
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = "signed-proof.local.json";
+      link.click();
+
+      URL.revokeObjectURL(url);
+
+
+      log(
+        "✅ EIP-712 전자서명 생성 완료!\n\n" +
+        JSON.stringify(result, null, 2)
+      );
+
+    } catch (error) {
+      showError(error);
     }
-
-    // 연결 상태 확인
-    async function checkStatus() {
-      const provider = getProvider();
-
-      const accounts = await provider.request({
-        method: "eth_accounts"
-      });
-
-      const chainId = await provider.request({
-        method: "eth_chainId"
-      });
-
-      const selectedAccount = accounts[0] || "";
-
-      const accountMatched =
-        selectedAccount.toLowerCase() === expected;
-
-      const chainMatched =
-        chainId.toLowerCase() === hardhatChainId;
-
-      switchButton.disabled = !selectedAccount;
-
-      let message = "";
-
-      message += "연결된 계정: ";
-      message += selectedAccount || "(없음)";
-      message += "\n";
-
-      message += "관제센터 계정 일치: ";
-      message += accountMatched ? "예" : "아니요";
-      message += "\n";
-
-      message += "현재 체인 ID: " + chainId + "\n";
-
-      message += "Hardhat Local 일치: ";
-      message += chainMatched ? "예" : "아니요";
-      message += "\n\n";
-
-      if (accountMatched && chainMatched) {
-        message += "✅ 연결 확인 완료!";
-      } else {
-        message += "연결과 네트워크를 확인해주세요.";
-      }
-
-      log(message);
-    }
-
-    // ① MetaMask 연결
-    connectButton.addEventListener("click", async () => {
-      try {
-        const provider = getProvider();
-
-        const accounts = await provider.request({
-          method: "eth_requestAccounts"
-        });
-
-        if (!accounts.length) {
-          throw new Error("연결된 계정이 없습니다.");
-        }
-
-        switchButton.disabled = false;
-
-        await checkStatus();
-
-      } catch (error) {
-        log("연결 오류: " + error.message);
-      }
-    });
-
-    // ② Hardhat Local 전환
-    switchButton.addEventListener("click", async () => {
-      try {
-        const provider = getProvider();
-
-        try {
-          await provider.request({
-            method: "wallet_switchEthereumChain",
-            params: [
-              {
-                chainId: hardhatChainId
-              }
-            ]
-          });
-
-        } catch (error) {
-
-          // 네트워크가 없는 경우 자동 추가 요청
-          if (error.code === 4902) {
-
-            await provider.request({
-              method: "wallet_addEthereumChain",
-              params: [
-                {
-                  chainId: hardhatChainId,
-                  chainName: "Hardhat Local",
-                  rpcUrls: [
-                    "http://127.0.0.1:8545"
-                  ],
-                  nativeCurrency: {
-                    name: "Ether",
-                    symbol: "ETH",
-                    decimals: 18
-                  }
-                }
-              ]
-            });
-
-            await provider.request({
-              method: "wallet_switchEthereumChain",
-              params: [
-                {
-                  chainId: hardhatChainId
-                }
-              ]
-            });
-
-          } else {
-            throw error;
-          }
-        }
-
-        await checkStatus();
-
-      } catch (error) {
-        log("네트워크 전환 오류: " + error.message);
-      }
-    });
-
-    // ③ 연결 상태 확인
-    checkButton.addEventListener("click", async () => {
-      try {
-        await checkStatus();
-      } catch (error) {
-        log("확인 오류: " + error.message);
-      }
-    });
-
-    // MetaMask 계정 또는 네트워크 변경 감지
-    if (window.ethereum) {
-
-      window.ethereum.on("accountsChanged", () => {
-        checkStatus().catch(console.error);
-      });
-
-      window.ethereum.on("chainChanged", () => {
-        checkStatus().catch(console.error);
-      });
-
-    }
-  </script>
+  };
+</script>
 </body>
 </html>

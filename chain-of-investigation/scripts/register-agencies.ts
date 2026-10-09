@@ -14,7 +14,7 @@ const contractAddress = match[1].trim().replace(/^["']|["']$/g, "");
 
 async function main() {
   const artifact = await hre.artifacts.readArtifact(
-    "ChainOfInvestigation"
+    "contracts/ChainOfInvestigation.sol:ChainOfInvestigation"
   );
 
   const provider = new ethers.JsonRpcProvider(

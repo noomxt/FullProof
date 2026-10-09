@@ -33,3 +33,5 @@
 # Python
 __pycache__/
 *.pyc
+
+signed-proof.local.json
