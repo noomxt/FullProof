@@ -35,3 +35,9 @@ __pycache__/
 *.pyc
 
 signed-proof.local.json
+
+# Local SQLite database
+fullproof.db
+fullproof.db-journal
+fullproof.db-wal
+fullproof.db-shm
