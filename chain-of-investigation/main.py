@@ -15,7 +15,15 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from web3 import Web3
-from database import init_db, save_case, load_cases
+
+from database import (
+    init_db,
+    save_case,
+    load_cases,
+    save_checkpoint,
+    load_checkpoint,
+)
+
 from eth_account.messages import encode_typed_data
 
 load_dotenv()
@@ -350,6 +358,29 @@ def anchor_signed_proof(data: AnchorProofSchema):
         )
 
 
+
+    
+    # 기존 체크포인트와 현재 블록체인 기록 비교
+    checkpoint_id = "FULLPROOF_TEST_001_PROOF_2"
+
+    checkpoint = load_checkpoint(checkpoint_id)
+
+    if checkpoint is not None:
+        # 기존 체크포인트 검증 API의 함수 재사용
+        checkpoint_result = check_blockchain_checkpoint(
+            checkpoint_id
+        )
+
+        if not checkpoint_result["is_valid"]:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "블록체인 체크포인트가 일치하지 않습니다. "
+                    "Proof 기록이 차단되었습니다. "
+                    + checkpoint_result["message"]
+                )
+            )
+
     # 2. AI 연동 전에는 PENDING만 허용
     if data.result != STATUS["PENDING"]:
         raise HTTPException(
@@ -568,3 +599,96 @@ def close_case_endpoint(case_id: str, body: CloseCaseSchema):
     case["close_reason"] = body.reason
     save_case(case)
     return {"status": "SUCCESS", "message": f"Case {case_id} closed successfully", "tx_hash": tx}
+
+
+@app.get("/api/v1/blockchain/checkpoints/{checkpoint_id}")
+def check_blockchain_checkpoint(checkpoint_id: str):
+    require_chain()
+
+    # 1. SQLite에서 저장된 체크포인트 조회
+    checkpoint = load_checkpoint(checkpoint_id)
+
+    if checkpoint is None:
+        raise HTTPException(
+            404,
+            "Checkpoint not found in SQLite"
+        )
+
+    try:
+        # 2. 현재 연결된 블록체인 정보 조회
+        current_chain_id = w3.eth.chain_id
+        current_contract = contract.address
+
+        # 3. 체인 ID 및 컨트랙트 주소 비교
+        if (
+            current_chain_id != checkpoint["chain_id"]
+            or current_contract.lower()
+            != checkpoint["contract_address"].lower()
+        ):
+            return {
+                "checkpoint_id": checkpoint_id,
+                "is_valid": False,
+                "message": "체인 ID 또는 컨트랙트 주소가 다릅니다."
+            }
+
+        # 4. 저장된 블록 번호로 현재 체인 조회
+        if w3.eth.block_number < checkpoint["block_number"]:
+            return {
+                "checkpoint_id": checkpoint_id,
+                "is_valid": False,
+                "message": "현재 체인에 체크포인트 블록이 없습니다."
+            }
+
+        block = w3.eth.get_block(
+            checkpoint["block_number"]
+        )
+
+        current_block_hash = block["hash"].hex()
+
+        # 5. 블록 해시 비교
+        if (
+            current_block_hash.lower()
+            != checkpoint["block_hash"].lower()
+        ):
+            return {
+                "checkpoint_id": checkpoint_id,
+                "is_valid": False,
+                "message": "블록 해시가 일치하지 않습니다."
+            }
+
+        # 6. 저장된 트랜잭션 확인
+        receipt = w3.eth.get_transaction_receipt(
+            checkpoint["tx_hash"]
+        )
+
+        if (
+            receipt["status"] != 1
+            or receipt["blockNumber"] != checkpoint["block_number"]
+            or receipt["blockHash"].hex().lower()
+            != checkpoint["block_hash"].lower()
+            or not receipt["to"]
+            or receipt["to"].lower()
+            != checkpoint["contract_address"].lower()
+        ):
+            return {
+                "checkpoint_id": checkpoint_id,
+                "is_valid": False,
+                "message": "트랜잭션 기록이 체크포인트와 일치하지 않습니다."
+            }
+
+        return {
+            "checkpoint_id": checkpoint_id,
+            "is_valid": True,
+            "chain_id": current_chain_id,
+            "block_number": checkpoint["block_number"],
+            "block_hash": current_block_hash,
+            "tx_hash": checkpoint["tx_hash"],
+            "message": "저장된 블록 및 트랜잭션 기록이 현재 체인과 일치합니다."
+        }
+
+    except Exception as e:
+        return {
+            "checkpoint_id": checkpoint_id,
+            "is_valid": False,
+            "message": f"체크포인트 검증 실패: {e}"
+        }

@@ -41,3 +41,5 @@ fullproof.db
 fullproof.db-journal
 fullproof.db-wal
 fullproof.db-shm
+
+checkpoint-backup.local.json
