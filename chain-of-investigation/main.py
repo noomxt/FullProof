@@ -158,6 +158,74 @@ class AnchorProofSchema(BaseModel):
 class CloseCaseSchema(BaseModel):
     reason: str = "수사 완료"
 
+
+@app.get("/api/v1/cases/{case_id}/chain-status")
+def get_case_chain_status(case_id: str):
+    # SQLite에 저장된 사건 확인
+    local_case = cases_db.get(case_id)
+
+    # 블록체인 연결 및 컨트랙트 확인
+    require_chain()
+
+    try:
+        onchain_case = contract.functions.cases(
+            case_uint(case_id)
+        ).call()
+
+        # CaseInfo의 exists 필드
+        onchain_exists = bool(onchain_case[3])
+
+        # 온체인 단계 개수
+        onchain_step_count = (
+            int(onchain_case[2]) if onchain_exists else 0
+        )
+
+        local_exists = local_case is not None
+        local_step_count = (
+            len(local_case["steps"]) if local_exists else 0
+        )
+
+        # 사건 존재 여부와 단계 개수 비교
+        is_synced = (
+            local_exists == onchain_exists
+            and (
+                not local_exists
+                or local_step_count == onchain_step_count
+            )
+        )
+
+        if local_exists and not onchain_exists:
+            message = "SQLite에만 사건이 존재합니다. 로컬 체인 초기화 여부를 확인하세요."
+        elif not local_exists and onchain_exists:
+            message = "블록체인에만 사건이 존재합니다. SQLite 복구가 필요합니다."
+        elif not local_exists and not onchain_exists:
+            message = "양쪽 모두 사건이 존재하지 않습니다."
+        elif not is_synced:
+            message = "사건은 양쪽에 있지만 수사 단계 개수가 다릅니다."
+        else:
+            message = "사건 존재 여부와 수사 단계 개수가 일치합니다."
+
+        return {
+            "case_id": case_id,
+            "sqlite": {
+                "exists": local_exists,
+                "step_count": local_step_count
+            },
+            "blockchain": {
+                "exists": onchain_exists,
+                "step_count": onchain_step_count
+            },
+            "is_synced": is_synced,
+            "message": message
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            400,
+            f"Chain status check failed: {e}"
+        )
+
+
 @app.get("/api/v1/cases")
 def get_all_cases():
     return list(cases_db.values())
@@ -251,6 +319,36 @@ def anchor_signed_proof(data: AnchorProofSchema):
 
     if data.step_id >= len(case["steps"]):
         raise HTTPException(400, "Step index out of bounds")
+    
+    # SQLite와 현재 블록체인 사건 상태 비교
+    try:
+        onchain_case = contract.functions.cases(
+            case_uint(data.case_id)
+        ).call()
+
+        onchain_exists = bool(onchain_case[3])
+        onchain_step_count = int(onchain_case[2])
+
+        if not onchain_exists:
+            raise HTTPException(
+                409,
+                "SQLite에는 사건이 있지만 블록체인에는 없습니다. 체인 초기화 여부를 확인하세요."
+            )
+
+        if onchain_step_count != len(case["steps"]):
+            raise HTTPException(
+                409,
+                "SQLite와 블록체인의 수사 단계 개수가 일치하지 않습니다."
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            503,
+            f"On-chain case status check failed: {e}"
+        )
+
 
     # 2. AI 연동 전에는 PENDING만 허용
     if data.result != STATUS["PENDING"]:
@@ -260,12 +358,34 @@ def anchor_signed_proof(data: AnchorProofSchema):
         )
 
     try:
-        # 3. 서명에 포함된 원본 데이터 준비
+        
+        # 3. 전달받은 해시 형식 확인
         claim_hash = bytes.fromhex(data.claim_hash.removeprefix("0x"))
         proof_hash = bytes.fromhex(data.proof_hash.removeprefix("0x"))
 
         if len(claim_hash) != 32 or len(proof_hash) != 32:
             raise ValueError("Claim/Proof hashes must be 32 bytes")
+
+        # 4. 원본 텍스트에서 SHA-256 해시 직접 계산
+        expected_claim_hash = hashlib.sha256(
+            data.claim_text.encode("utf-8")
+        ).digest()
+
+        expected_proof_hash = hashlib.sha256(
+            data.proof_text.encode("utf-8")
+        ).digest()
+
+        # 5. 원본 데이터와 전달된 해시 비교
+        if claim_hash != expected_claim_hash:
+            raise ValueError(
+                "Claim hash mismatch: original text does not match"
+            )
+
+        if proof_hash != expected_proof_hash:
+            raise ValueError(
+                "Proof hash mismatch: original text does not match"
+            )
+
 
         # 4. EIP-712 서명 메시지 재구성
         request = {
