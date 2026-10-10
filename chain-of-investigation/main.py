@@ -22,6 +22,9 @@ from database import (
     load_cases,
     save_checkpoint,
     load_checkpoint,
+    load_latest_case_checkpoint,
+    list_case_checkpoints,
+    save_proof_result_atomic,
 )
 
 from eth_account.messages import encode_typed_data
@@ -161,6 +164,11 @@ class AnchorProofSchema(BaseModel):
     deadline: int = Field(gt=0)
 
     signature: str
+
+
+class RecoverProofSchema(BaseModel):
+    tx_hash: str
+
 
 
 class CloseCaseSchema(BaseModel):
@@ -360,13 +368,12 @@ def anchor_signed_proof(data: AnchorProofSchema):
 
 
     
-    # 기존 체크포인트와 현재 블록체인 기록 비교
-    checkpoint_id = "FULLPROOF_TEST_001_PROOF_2"
-
-    checkpoint = load_checkpoint(checkpoint_id)
+    
+    # 사건별 최신 체크포인트 자동 조회
+    checkpoint_id = f"CASE_{data.case_id}_LATEST"
+    checkpoint = load_latest_case_checkpoint(data.case_id)
 
     if checkpoint is not None:
-        # 기존 체크포인트 검증 API의 함수 재사용
         checkpoint_result = check_blockchain_checkpoint(
             checkpoint_id
         )
@@ -380,6 +387,22 @@ def anchor_signed_proof(data: AnchorProofSchema):
                     + checkpoint_result["message"]
                 )
             )
+    else:
+        # 기존 Proof가 있는데 체크포인트가 없으면 기록 차단
+        history_count = contract.functions.getProofHistoryLength(
+            case_uint(data.case_id),
+            data.step_id
+        ).call()
+
+        if history_count > 0:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "기존 Proof 이력이 있지만 사건별 체크포인트가 없습니다. "
+                    "기록을 중단하고 체크포인트 상태를 확인하세요."
+                )
+            )
+
 
     # 2. AI 연동 전에는 PENDING만 허용
     if data.result != STATUS["PENDING"]:
@@ -457,6 +480,53 @@ def anchor_signed_proof(data: AnchorProofSchema):
                 {"from": sender()}
             )
         )
+        
+        # 성공한 Proof 트랜잭션의 블록 정보 조회
+        receipt = w3.eth.get_transaction_receipt(tx)
+
+        if receipt["status"] != 1:
+            raise ValueError("Proof transaction failed")
+
+        if (
+            not receipt["to"]
+            or receipt["to"].lower() != contract.address.lower()
+        ):
+            raise ValueError("Proof transaction contract mismatch")
+
+        
+        # 현재 수사 단계의 Proof History 개수 조회
+        proof_count = contract.functions.getProofHistoryLength(
+            case_uint(data.case_id),
+            data.step_id
+        ).call()
+
+        # 새 체크포인트 정보
+        checkpoint_data = {
+            "chain_id": w3.eth.chain_id,
+            "contract_address": contract.address,
+            "block_number": receipt["blockNumber"],
+            "block_hash": receipt["blockHash"].hex(),
+            "tx_hash": receipt["transactionHash"].hex()
+        }
+
+        # 1. Proof별 체크포인트 이력 보존
+        history_checkpoint = {
+            **checkpoint_data,
+            "checkpoint_id": (
+                f"CASE_{data.case_id}_STEP_{data.step_id}"
+                f"_PROOF_{proof_count}"
+            )
+        }
+
+
+        # 2. 해당 사건의 최신 체크포인트 갱신
+        latest_checkpoint = {
+            **checkpoint_data,
+            "checkpoint_id": f"CASE_{data.case_id}_LATEST"
+        }
+
+
+
 
         # 9. 온체인 기록 개수 확인
         history_count = contract.functions.getProofHistoryLength(
@@ -471,8 +541,10 @@ def anchor_signed_proof(data: AnchorProofSchema):
             f"Proof anchoring failed: {e}"
         )
 
-    # 10. 로컬 API 상태 갱신
+    
+    # 10. 블록체인 기록 후 로컬 API 상태 갱신
     step = case["steps"][data.step_id]
+
     step.update({
         "claim_hash": data.claim_hash,
         "proof_hash": data.proof_hash,
@@ -480,7 +552,31 @@ def anchor_signed_proof(data: AnchorProofSchema):
         "is_completed": False,
         "tx_hash": tx
     })
-    save_case(case)
+
+    # SQLite 통합 저장
+    try:
+        save_proof_result_atomic(
+            case,
+            history_checkpoint,
+            latest_checkpoint
+        )
+
+    except Exception as e:
+        # DB 저장 실패 시 블록체인 기록은 이미 완료된 상태
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": "블록체인 Proof 기록은 성공했지만 SQLite 저장에 실패했습니다.",
+                "blockchain_status": "SUCCESS",
+                "database_status": "FAILED",
+                "tx_hash": tx,
+                "case_id": data.case_id,
+                "step_id": data.step_id,
+                "recovery_required": True,
+                "error": str(e)
+            }
+        )
+
 
     return {
         "message": "Signed Proof anchored successfully",
@@ -692,3 +788,176 @@ def check_blockchain_checkpoint(checkpoint_id: str):
             "is_valid": False,
             "message": f"체크포인트 검증 실패: {e}"
         }
+
+@app.get("/api/v1/cases/{case_id}/checkpoints")
+def get_case_checkpoints(case_id: str):
+    checkpoints = list_case_checkpoints(case_id)
+
+    return {
+        "case_id": case_id,
+        "count": len(checkpoints),
+        "checkpoints": checkpoints
+    }
+
+
+@app.post("/api/v1/cases/{case_id}/steps/{step_id}/recover-proof")
+def recover_proof(
+    case_id: str,
+    step_id: int,
+    data: RecoverProofSchema
+):
+    require_chain()
+
+    # 1. SQLite에 사건과 수사 단계가 존재하는지 확인
+    case = cases_db.get(case_id)
+
+    if case is None:
+        raise HTTPException(404, "Case not found")
+
+    if step_id < 0 or step_id >= len(case["steps"]):
+        raise HTTPException(400, "Invalid step ID")
+
+    # 2. 트랜잭션 해시 형식 검사
+    if (
+        not isinstance(data.tx_hash, str)
+        or len(data.tx_hash) != 66
+        or not data.tx_hash.startswith("0x")
+        or any(c not in "0123456789abcdefABCDEF" for c in data.tx_hash[2:])
+    ):
+        raise HTTPException(400, "Invalid transaction hash")
+
+    try:
+        receipt = w3.eth.get_transaction_receipt(data.tx_hash)
+        transaction = w3.eth.get_transaction(data.tx_hash)
+
+        # 3. 실제 성공한 트랜잭션인지 확인
+        if receipt["status"] != 1:
+            raise HTTPException(409, "Transaction failed")
+
+        # 4. 현재 스마트 컨트랙트에 보낸 거래인지 확인
+        if (
+            not transaction["to"]
+            or transaction["to"].lower() != contract.address.lower()
+        ):
+            raise HTTPException(
+                409, "Transaction contract mismatch"
+            )
+
+        # 5. 호출된 함수와 인자 해석
+        function, arguments = contract.decode_function_input(
+            transaction["input"]
+        )
+
+        if function.fn_name != "anchorProof":
+            raise HTTPException(
+                409, "Transaction is not an anchorProof call"
+            )
+
+        # 6. 사건 ID와 수사 단계 ID 비교
+        if arguments["caseId"] != case_uint(case_id):
+            raise HTTPException(
+                409, "Transaction case ID mismatch"
+            )
+
+        if arguments["stepId"] != step_id:
+            raise HTTPException(
+                409, "Transaction step ID mismatch"
+            )
+
+        
+        
+        # 7. 실제 트랜잭션의 ProofAnchored 이벤트 추출
+        events = contract.events.ProofAnchored().process_receipt(receipt)
+
+        if len(events) != 1:
+            raise HTTPException(
+                409,
+                "Expected exactly one ProofAnchored event"
+            )
+
+        event = events[0]["args"]
+
+        # 8. 이벤트의 사건 및 단계 확인
+        if event["caseId"] != case_uint(case_id):
+            raise HTTPException(409, "Event case ID mismatch")
+
+        if event["stepId"] != step_id:
+            raise HTTPException(409, "Event step ID mismatch")
+
+        # 9. 이벤트 내용과 트랜잭션 입력값 비교
+        if (
+            event["agency"].lower() != arguments["agency"].lower()
+            or bytes(event["claimHash"]) != bytes(arguments["claimHash"])
+            or bytes(event["proofHash"]) != bytes(arguments["proofHash"])
+            or int(event["status"]) != int(arguments["result"])
+            or int(event["evidenceTimestamp"]) != int(arguments["evidenceTimestamp"])
+        ):
+            raise HTTPException(
+                409,
+                "Event does not match transaction arguments"
+            )
+
+        # 10. Proof ID로 실제 온체인 기록 식별
+        proof_count = contract.functions.getProofHistoryLength(
+            case_uint(case_id),
+            step_id
+        ).call()
+
+        matching_proof_index = None
+        proof_id = int(event["proofId"])
+
+        for i in range(proof_count):
+            record = contract.functions.getProofRecord(
+                case_uint(case_id),
+                step_id,
+                i
+            ).call()
+
+            if int(record[0]) == proof_id:
+                matching_proof_index = i
+
+                # 이벤트와 실제 Proof 기록 비교
+                if (
+                    record[1].lower() != event["agency"].lower()
+                    or record[2].lower() != event["signer"].lower()
+                    or bytes(record[3]) != bytes(event["claimHash"])
+                    or bytes(record[4]) != bytes(event["proofHash"])
+                    or int(record[5]) != int(event["status"])
+                    or int(record[6]) != int(event["evidenceTimestamp"])
+                ):
+                    raise HTTPException(
+                        409,
+                        "On-chain Proof record does not match event"
+                    )
+
+                break
+
+        if matching_proof_index is None:
+            raise HTTPException(
+                409,
+                "Proof ID not found in on-chain history"
+            )
+
+
+        # 아직 SQLite는 수정하지 않음
+        return {
+            "message": "Proof recovery transaction validation passed",
+            "case_id": case_id,
+            "step_id": step_id,
+            "tx_hash": data.tx_hash,
+            "block_number": receipt["blockNumber"],
+            "transaction_valid": True,
+            "proof_history_matched": True,
+            "proof_id": proof_id,
+            "matching_proof_index": matching_proof_index,
+            "database_modified": False
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        raise HTTPException(
+            400,
+            f"Proof recovery validation failed: {e}"
+        )
