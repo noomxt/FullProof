@@ -1,0 +1,31 @@
+{
+  "tested_at": "2026-10-17T14:02:43.769Z",
+  "environment": "LOCAL_HARDHAT_CHAIN_31337",
+  "ai_provider": "fixture (no Gemini call)",
+  "contract_address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "results": [
+    "Independent proof validation absent: normal analysis stays INSUFFICIENT",
+    "Tampered typed data rejected before anchoring",
+    "match: typed signature -> real local receipt -> immutable proof history -> SQLite; duplicate/reused nonce rejected",
+    "mismatch: typed signature -> real local receipt -> immutable proof history -> SQLite; duplicate/reused nonce rejected",
+    "missing: INSUFFICIENT, no signing payload or fabricated transaction",
+    "provided: INSUFFICIENT, no signing payload or fabricated transaction",
+    "Unlisted fixture text fails explicitly; no invented model output"
+  ],
+  "transactions": [
+    {
+      "scenario": "match",
+      "analysis_id": "30ccfb5c-1fdb-4a4d-95de-9d53f5b67044",
+      "transaction_hash": "0xb79bbcf391373fcc67daa470df5353ca4be69029fbe8664a8289316d47e65f07",
+      "block_number": 27
+    },
+    {
+      "scenario": "mismatch",
+      "analysis_id": "2bbab587-0cd4-4023-82ac-4ffb45d883f6",
+      "transaction_hash": "0xbc776dc16f2013c849dbb22050cdccd9c64e167d9362a094321a75ec671dc539",
+      "block_number": 28
+    }
+  ],
+  "restart_check": "PASS: previous local-chain confirmations become STALE_CHAIN after reset",
+  "browser_check": "PASS: injected browser wallet adapter; real MetaMask extension not tested"
+}

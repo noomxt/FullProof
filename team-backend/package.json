@@ -1,0 +1,23 @@
+{
+  "name": "fullproof-local-chain",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "node": "hardhat node --hostname 127.0.0.1",
+    "compile": "node scripts/compile-local.mjs",
+    "deploy:local": "node scripts/deploy-local.mjs",
+    "test:integration": "node scripts/integration-test.mjs"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "5.6.1",
+    "ethers": "6.17.0"
+  },
+  "devDependencies": {
+    "hardhat": "3.20.0",
+    "solc": "0.8.34"
+  }
+}

@@ -1,0 +1,3 @@
+import TeamIntegration from './pages/TeamIntegration';
+import {Routes,Route,Link} from 'react-router-dom';import Layout from './components/Layout';import Dashboard from './pages/Dashboard';import CaseDetail from './pages/CaseDetail';import Verification from './pages/Verification';import History from './pages/History';
+export default function App(){return <Routes><Route element={<Layout/>}><Route index element={<Dashboard/>}/><Route path="cases/:id" element={<CaseDetail/>}/><Route path="claims/:id" element={<Verification/>}/><Route path="integration" element={<TeamIntegration/>}/><Route path="history" element={<History/>}/><Route path="*" element={<div className="state"><h1>페이지를 찾을 수 없습니다.</h1><Link to="/">사건 관리로 돌아가기</Link></div>}/></Route></Routes>}

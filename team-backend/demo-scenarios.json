@@ -1,0 +1,67 @@
+[
+  {
+    "id": "match",
+    "case_id": "FP-DEMO-001",
+    "title": "가상 실종사건 · 연락 시도 일치",
+    "label": "기록·증빙 일치",
+    "step_id": 0,
+    "raw_claim_text": "2026년 10월 10일 14시에 P001에게 전화했으나 연결 실패.",
+    "proof": {
+      "proof_id": "DEMO-P1",
+      "proof_version": 1,
+      "action_type": "PHONE_CALL",
+      "target_id": "P001",
+      "occurred_at": "2026-10-10T14:00:00+09:00",
+      "action_result": "FAIL",
+      "proof_text": "P001에게 발신했으나 무응답으로 연결되지 않음."
+    },
+    "expected_verdict": "SUPPORTED"
+  },
+  {
+    "id": "mismatch",
+    "case_id": "FP-DEMO-002",
+    "title": "가상 실종사건 · 연락 시각 불일치",
+    "label": "시각 불일치",
+    "step_id": 0,
+    "raw_claim_text": "2026년 10월 10일 14시에 P001에게 전화했으나 연결 실패.",
+    "proof": {
+      "proof_id": "DEMO-P2",
+      "proof_version": 1,
+      "action_type": "PHONE_CALL",
+      "target_id": "P001",
+      "occurred_at": "2026-10-10T14:50:00+09:00",
+      "action_result": "FAIL",
+      "proof_text": "P001에게 발신했으나 무응답으로 연결되지 않음."
+    },
+    "expected_verdict": "CONTRADICTED"
+  },
+  {
+    "id": "missing",
+    "case_id": "FP-DEMO-003",
+    "title": "가상 실종사건 · 증빙 미수신",
+    "label": "증빙 없음",
+    "step_id": 0,
+    "raw_claim_text": "2026년 10월 10일 14시에 P001에게 전화했으나 연결 실패.",
+    "proof": null,
+    "expected_verdict": "INSUFFICIENT"
+  },
+  {
+    "id": "provided",
+    "case_id": "FP-DEMO-004",
+    "title": "가상 실종사건 · CCTV 열람 미확인",
+    "label": "제공 확인·열람 미확인",
+    "step_id": 3,
+    "raw_claim_text": "2026년 10월 10일 14시에 CCTV001 영상을 열람 완료했다.",
+    "proof": {
+      "proof_id": "DEMO-P4",
+      "proof_version": 1,
+      "action_type": "UNKNOWN",
+      "target_id": "CCTV001",
+      "occurred_at": "2026-10-10T14:00:00+09:00",
+      "action_result": "UNKNOWN",
+      "observed_stage": "PROVIDED",
+      "proof_text": "CCTV001 자료 제공 완료. 실제 열람 로그는 제공되지 않음."
+    },
+    "expected_verdict": "INSUFFICIENT"
+  }
+]
