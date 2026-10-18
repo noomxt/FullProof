@@ -141,6 +141,24 @@ class ClaimCreateSchema(BaseModel):
     step_id: int = Field(ge=0)
     claim_text: str = Field(min_length=1)
 
+
+class ProofAttestationSchema(BaseModel):
+    case_id: str
+    step_id: int = Field(ge=0)
+
+    proof_id: str = Field(min_length=1)
+    proof_hash: str
+
+    occurred_at: int = Field(gt=0)
+    issued_at: int = Field(gt=0)
+
+    agency: str
+    nonce: int = Field(ge=0)
+    deadline: int = Field(gt=0)
+
+    signature: str
+
+
 class VerifyRequestSchema(BaseModel):
     case_id: str
     step_id: int = Field(ge=0)
@@ -403,6 +421,154 @@ def get_claim_history(case_id: str, step_id: int):
         "total": count,
         "claims": records
     }
+
+@app.post(
+    "/api/v1/proofs/anchor",
+    status_code=status.HTTP_201_CREATED
+)
+def anchor_agency_proof(data: ProofAttestationSchema):
+    require_chain()
+
+    # 1. 사건과 단계가 존재하는지 확인
+    case = cases_db.get(data.case_id)
+
+    if not case:
+        raise HTTPException(404, "Case not found")
+
+    if case["is_closed"]:
+        raise HTTPException(400, "Cannot modify closed case")
+
+    if data.step_id >= len(case["steps"]):
+        raise HTTPException(400, "Invalid step_id")
+
+    # 2. Proof 해시와 기관 주소 형식 확인
+    def valid_hash(value):
+        return (
+            isinstance(value, str)
+            and len(value) == 66
+            and value.startswith("0x")
+            and all(c in "0123456789abcdef" for c in value[2:])
+        )
+
+    if not valid_hash(data.proof_hash):
+        raise HTTPException(400, "Invalid proof_hash")
+
+    if not Web3.is_address(data.agency):
+        raise HTTPException(400, "Invalid agency address")
+
+    if (
+        not isinstance(data.signature, str)
+        or not data.signature.startswith("0x")
+        or len(data.signature) != 132
+    ):
+        raise HTTPException(400, "Invalid signature format")
+
+    if data.issued_at < data.occurred_at:
+        raise HTTPException(400, "Invalid proof timestamps")
+
+    # 3. Proof ID를 SHA-256으로 해시
+    proof_id_hash = "0x" + hashlib.sha256(
+        data.proof_id.encode("utf-8")
+    ).hexdigest()
+
+    agency_address = Web3.to_checksum_address(data.agency)
+
+    # 4. Solidity ProofAttestation 구조체 구성
+    request = (
+        case_uint(data.case_id),
+        data.step_id,
+        proof_id_hash,
+        data.proof_hash,
+        data.occurred_at,
+        data.issued_at,
+        agency_address,
+        data.nonce,
+        data.deadline
+    )
+
+    # 5. 기관 서명 검증 및 온체인 기록
+    try:
+        tx_hash = confirmed(
+            contract.functions.anchorProofAttestation(
+                request,
+                data.signature
+            ).transact({"from": sender()})
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        raise HTTPException(
+            400,
+            f"On-chain Proof attestation failed: {e}"
+        )
+
+    # 6. 결과 반환
+    return {
+        "schema_version": "1.1",
+        "case_id": data.case_id,
+        "step_id": data.step_id,
+        "proof_id": data.proof_id,
+        "proof_id_hash": proof_id_hash,
+        "proof_hash": data.proof_hash,
+        "agency": agency_address,
+        "proof_tx_hash": tx_hash,
+        "chain_status": "CONFIRMED"
+    }
+
+
+@app.get("/api/v1/cases/{case_id}/steps/{step_id}/agency-proofs")
+def get_agency_proof_history(case_id: str, step_id: int):
+    require_chain()
+
+    case = cases_db.get(case_id)
+
+    if not case:
+        raise HTTPException(404, "Case not found")
+
+    if step_id < 0 or step_id >= len(case["steps"]):
+        raise HTTPException(400, "Invalid step_id")
+
+    try:
+        chain_case_id = case_uint(case_id)
+
+        count = contract.functions.getAgencyProofHistoryLength(
+            chain_case_id, step_id
+        ).call()
+
+        records = []
+
+        for index in range(count):
+            record = contract.functions.getAgencyProofRecord(
+                chain_case_id, step_id, index
+            ).call()
+
+            records.append({
+                "proof_id_hash": Web3.to_hex(record[0]),
+                "proof_hash": Web3.to_hex(record[1]),
+                "agency": record[2],
+                "signer": record[3],
+                "occurred_at": record[4],
+                "issued_at": record[5],
+                "recorded_at": record[6],
+                "signature_digest": Web3.to_hex(record[7])
+            })
+
+    except Exception as e:
+        raise HTTPException(
+            500,
+            f"On-chain agency Proof lookup failed: {e}"
+        )
+
+    return {
+        "case_id": case_id,
+        "step_id": step_id,
+        "total": count,
+        "proofs": records
+    }
+
+
 
 
 

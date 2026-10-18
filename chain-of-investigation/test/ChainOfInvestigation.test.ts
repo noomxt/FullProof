@@ -778,6 +778,451 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
 
     expect(recordV1.claimHash).to.not.equal(recordV2.claimHash);
   });
+  
+  it("14. 통신사 공식 서명으로 독립 Proof를 기록한다", async function () {
+    const proofIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("PROOF-TELECOM-001")
+    );
+
+    const proofHash = ethers.sha256(
+      ethers.toUtf8Bytes("통신사 원본 통화 기록")
+    );
+
+    const latestBlock = await ethers.provider.getBlock("latest");
+
+    if (!latestBlock) {
+      throw new Error("Latest block unavailable");
+    }
+
+    const occurredAt = BigInt(latestBlock.timestamp - 120);
+    const issuedAt = BigInt(latestBlock.timestamp - 60);
+    const deadline = BigInt(latestBlock.timestamp + 3600);
+
+    const nonce = await contract.agencyNonces(telecom.address);
+
+    const request = {
+      caseId,
+      stepId: 0n,
+      proofIdHash,
+      proofHash,
+      occurredAt,
+      issuedAt,
+      agency: telecom.address,
+      nonce,
+      deadline,
+    };
+
+    const networkInfo = await ethers.provider.getNetwork();
+
+    const domain = {
+      name: "FullProof",
+      version: "1",
+      chainId: networkInfo.chainId,
+      verifyingContract: await contract.getAddress(),
+    };
+
+    const types = {
+      ProofAttestation: [
+        { name: "caseId", type: "uint256" },
+        { name: "stepId", type: "uint256" },
+        { name: "proofIdHash", type: "bytes32" },
+        { name: "proofHash", type: "bytes32" },
+        { name: "occurredAt", type: "uint64" },
+        { name: "issuedAt", type: "uint64" },
+        { name: "agency", type: "address" },
+        { name: "nonce", type: "uint256" },
+        { name: "deadline", type: "uint64" },
+      ],
+    };
+
+    // 통신사의 공식 지갑으로 Proof에 서명
+    const signature = await telecom.signTypedData(
+      domain,
+      types,
+      request
+    );
+
+    // 기관 전자서명 검증 후 Proof 기록
+    await expect(
+      contract.anchorProofAttestation(request, signature)
+    ).to.emit(contract, "AgencyProofAnchored");
+
+    // Proof가 등록되어도 최종 검증 판정은 변경되지 않아야 함
+    const step = await contract.getStepInfo(caseId, 0);
+
+    expect(step.status).to.equal(BigInt(STATUS.PENDING));
+
+    // 사용된 서명의 nonce는 1 증가해야 함
+    expect(
+      await contract.agencyNonces(telecom.address)
+    ).to.equal(nonce + 1n);
+  });
+  
+  it("15. 다른 기관이 통신사 Proof에 서명하면 거부한다", async function () {
+    const latestBlock = await ethers.provider.getBlock("latest");
+
+    if (!latestBlock) {
+      throw new Error("Latest block unavailable");
+    }
+
+    const request = {
+      caseId,
+      stepId: 0n,
+      proofIdHash: ethers.sha256(
+        ethers.toUtf8Bytes("PROOF-TELECOM-002")
+      ),
+      proofHash: ethers.sha256(
+        ethers.toUtf8Bytes("통신사 통화 기록")
+      ),
+      occurredAt: BigInt(latestBlock.timestamp - 120),
+      issuedAt: BigInt(latestBlock.timestamp - 60),
+      agency: telecom.address,
+      nonce: await contract.agencyNonces(telecom.address),
+      deadline: BigInt(latestBlock.timestamp + 3600),
+    };
+
+    const networkInfo = await ethers.provider.getNetwork();
+
+    const domain = {
+      name: "FullProof",
+      version: "1",
+      chainId: networkInfo.chainId,
+      verifyingContract: await contract.getAddress(),
+    };
+
+    const types = {
+      ProofAttestation: [
+        { name: "caseId", type: "uint256" },
+        { name: "stepId", type: "uint256" },
+        { name: "proofIdHash", type: "bytes32" },
+        { name: "proofHash", type: "bytes32" },
+        { name: "occurredAt", type: "uint64" },
+        { name: "issuedAt", type: "uint64" },
+        { name: "agency", type: "address" },
+        { name: "nonce", type: "uint256" },
+        { name: "deadline", type: "uint64" },
+      ],
+    };
+
+    // 통신사 Proof를 CCTV 기관 지갑으로 서명
+    const fakeSignature = await cctv.signTypedData(
+      domain,
+      types,
+      request
+    );
+
+    await expect(
+      contract.anchorProofAttestation(request, fakeSignature)
+    ).to.be.revertedWith("Invalid electronic signature");
+
+    // 실패한 요청은 nonce를 소비하면 안 됨
+    expect(
+      await contract.agencyNonces(telecom.address)
+    ).to.equal(request.nonce);
+  });
+  
+  it("16. 동일한 Proof 전자서명의 재사용을 차단한다", async function () {
+    const latestBlock = await ethers.provider.getBlock("latest");
+
+    if (!latestBlock) {
+      throw new Error("Latest block unavailable");
+    }
+
+    const request = {
+      caseId,
+      stepId: 0n,
+      proofIdHash: ethers.sha256(
+        ethers.toUtf8Bytes("PROOF-REPLAY-001")
+      ),
+      proofHash: ethers.sha256(
+        ethers.toUtf8Bytes("통신사 통화 기록")
+      ),
+      occurredAt: BigInt(latestBlock.timestamp - 120),
+      issuedAt: BigInt(latestBlock.timestamp - 60),
+      agency: telecom.address,
+      nonce: await contract.agencyNonces(telecom.address),
+      deadline: BigInt(latestBlock.timestamp + 3600),
+    };
+
+    const networkInfo = await ethers.provider.getNetwork();
+
+    const domain = {
+      name: "FullProof",
+      version: "1",
+      chainId: networkInfo.chainId,
+      verifyingContract: await contract.getAddress(),
+    };
+
+    const types = {
+      ProofAttestation: [
+        { name: "caseId", type: "uint256" },
+        { name: "stepId", type: "uint256" },
+        { name: "proofIdHash", type: "bytes32" },
+        { name: "proofHash", type: "bytes32" },
+        { name: "occurredAt", type: "uint64" },
+        { name: "issuedAt", type: "uint64" },
+        { name: "agency", type: "address" },
+        { name: "nonce", type: "uint256" },
+        { name: "deadline", type: "uint64" },
+      ],
+    };
+
+    const signature = await telecom.signTypedData(
+      domain,
+      types,
+      request
+    );
+
+    // 첫 번째 등록: 성공해야 함
+    await contract.anchorProofAttestation(request, signature);
+
+    expect(
+      await contract.agencyNonces(telecom.address)
+    ).to.equal(request.nonce + 1n);
+
+    // 같은 요청과 서명으로 두 번째 등록: 거부해야 함
+    await expect(
+      contract.anchorProofAttestation(request, signature)
+    ).to.be.revert(ethers);
+
+    // 두 번째 실패 후에도 nonce가 그대로 유지되어야 함
+    expect(
+      await contract.agencyNonces(telecom.address)
+    ).to.equal(request.nonce + 1n);
+  });
+  
+  it("17. 만료된 기관 Proof 전자서명을 거부한다", async function () {
+    const latestBlock = await ethers.provider.getBlock("latest");
+
+    if (!latestBlock) {
+      throw new Error("Latest block unavailable");
+    }
+
+    const request = {
+      caseId,
+      stepId: 0n,
+      proofIdHash: ethers.sha256(
+        ethers.toUtf8Bytes("PROOF-EXPIRED-001")
+      ),
+      proofHash: ethers.sha256(
+        ethers.toUtf8Bytes("통신사 통화 기록")
+      ),
+      occurredAt: BigInt(latestBlock.timestamp - 300),
+      issuedAt: BigInt(latestBlock.timestamp - 200),
+      agency: telecom.address,
+      nonce: await contract.agencyNonces(telecom.address),
+      deadline: BigInt(latestBlock.timestamp - 10),
+    };
+
+    const networkInfo = await ethers.provider.getNetwork();
+
+    const domain = {
+      name: "FullProof",
+      version: "1",
+      chainId: networkInfo.chainId,
+      verifyingContract: await contract.getAddress(),
+    };
+
+    const types = {
+      ProofAttestation: [
+        { name: "caseId", type: "uint256" },
+        { name: "stepId", type: "uint256" },
+        { name: "proofIdHash", type: "bytes32" },
+        { name: "proofHash", type: "bytes32" },
+        { name: "occurredAt", type: "uint64" },
+        { name: "issuedAt", type: "uint64" },
+        { name: "agency", type: "address" },
+        { name: "nonce", type: "uint256" },
+        { name: "deadline", type: "uint64" },
+      ],
+    };
+
+    // 통신사의 공식 지갑으로 서명
+    const signature = await telecom.signTypedData(
+      domain,
+      types,
+      request
+    );
+
+    // 공식 서명이더라도 만료됐다면 거부
+    await expect(
+      contract.anchorProofAttestation(request, signature)
+    ).to.be.revert(ethers);
+
+    // 실패한 요청으로 nonce가 증가하면 안 됨
+    expect(
+      await contract.agencyNonces(telecom.address)
+    ).to.equal(request.nonce);
+  });
+  
+  it("18. 새로운 서명이어도 동일 Proof ID 중복 등록을 차단한다", async function () {
+    const latestBlock = await ethers.provider.getBlock("latest");
+
+    if (!latestBlock) {
+      throw new Error("Latest block unavailable");
+    }
+
+    const proofIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("PROOF-DUPLICATE-001")
+    );
+
+    const proofHash = ethers.sha256(
+      ethers.toUtf8Bytes("통신사 원본 통화 기록")
+    );
+
+    const networkInfo = await ethers.provider.getNetwork();
+
+    const domain = {
+      name: "FullProof",
+      version: "1",
+      chainId: networkInfo.chainId,
+      verifyingContract: await contract.getAddress(),
+    };
+
+    const types = {
+      ProofAttestation: [
+        { name: "caseId", type: "uint256" },
+        { name: "stepId", type: "uint256" },
+        { name: "proofIdHash", type: "bytes32" },
+        { name: "proofHash", type: "bytes32" },
+        { name: "occurredAt", type: "uint64" },
+        { name: "issuedAt", type: "uint64" },
+        { name: "agency", type: "address" },
+        { name: "nonce", type: "uint256" },
+        { name: "deadline", type: "uint64" },
+      ],
+    };
+
+    // 첫 번째 Proof 등록
+    const request1 = {
+      caseId,
+      stepId: 0n,
+      proofIdHash,
+      proofHash,
+      occurredAt: BigInt(latestBlock.timestamp - 120),
+      issuedAt: BigInt(latestBlock.timestamp - 60),
+      agency: telecom.address,
+      nonce: await contract.agencyNonces(telecom.address),
+      deadline: BigInt(latestBlock.timestamp + 3600),
+    };
+
+    const signature1 = await telecom.signTypedData(
+      domain, types, request1
+    );
+
+    await contract.anchorProofAttestation(request1, signature1);
+
+    // 두 번째 요청: nonce와 Proof 내용은 변경, ID는 동일
+    const request2 = {
+      ...request1,
+      proofHash: ethers.sha256(
+        ethers.toUtf8Bytes("수정된 통신사 통화 기록")
+      ),
+      nonce: await contract.agencyNonces(telecom.address),
+    };
+
+    const signature2 = await telecom.signTypedData(
+      domain, types, request2
+    );
+
+    // 새로운 서명이어도 같은 Proof ID이므로 거부
+    await expect(
+      contract.anchorProofAttestation(request2, signature2)
+    ).to.be.revert(ethers);
+
+    // 실패한 두 번째 요청으로 nonce가 소비되지 않아야 함
+    expect(
+      await contract.agencyNonces(telecom.address)
+    ).to.equal(request2.nonce);
+  });
+  
+  it("19. 기관 Proof 등록 후 온체인 이력을 정확히 조회한다", async function () {
+    const latestBlock = await ethers.provider.getBlock("latest");
+
+    if (!latestBlock) {
+      throw new Error("Latest block unavailable");
+    }
+
+    const proofIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("PROOF-HISTORY-001")
+    );
+
+    const proofHash = ethers.sha256(
+      ethers.toUtf8Bytes("통신사 원본 통화 기록")
+    );
+
+    const occurredAt = BigInt(latestBlock.timestamp - 120);
+    const issuedAt = BigInt(latestBlock.timestamp - 60);
+
+    const request = {
+      caseId,
+      stepId: 0n,
+      proofIdHash,
+      proofHash,
+      occurredAt,
+      issuedAt,
+      agency: telecom.address,
+      nonce: await contract.agencyNonces(telecom.address),
+      deadline: BigInt(latestBlock.timestamp + 3600),
+    };
+
+    const networkInfo = await ethers.provider.getNetwork();
+
+    const domain = {
+      name: "FullProof",
+      version: "1",
+      chainId: networkInfo.chainId,
+      verifyingContract: await contract.getAddress(),
+    };
+
+    const types = {
+      ProofAttestation: [
+        { name: "caseId", type: "uint256" },
+        { name: "stepId", type: "uint256" },
+        { name: "proofIdHash", type: "bytes32" },
+        { name: "proofHash", type: "bytes32" },
+        { name: "occurredAt", type: "uint64" },
+        { name: "issuedAt", type: "uint64" },
+        { name: "agency", type: "address" },
+        { name: "nonce", type: "uint256" },
+        { name: "deadline", type: "uint64" },
+      ],
+    };
+
+    const signature = await telecom.signTypedData(
+      domain,
+      types,
+      request
+    );
+
+    // Proof를 블록체인에 등록
+    await contract.anchorProofAttestation(request, signature);
+
+    // 이력 개수 조회
+    const count = await contract.getAgencyProofHistoryLength(caseId, 0);
+    expect(count).to.equal(1n);
+
+    // 등록한 Proof 조회
+    const record = await contract.getAgencyProofRecord(caseId, 0, 0);
+
+    expect(record.proofIdHash).to.equal(proofIdHash);
+    expect(record.proofHash).to.equal(proofHash);
+    expect(record.agency).to.equal(telecom.address);
+    expect(record.signer).to.equal(telecom.address);
+    expect(record.occurredAt).to.equal(occurredAt);
+    expect(record.issuedAt).to.equal(issuedAt);
+    expect(record.recordedAt).to.be.greaterThan(0n);
+
+    // Proof 등록이 검증 판정을 변경하지 않는지 다시 확인
+    const step = await contract.getStepInfo(caseId, 0);
+    expect(step.status).to.equal(BigInt(STATUS.PENDING));
+  });
+
+
+
+
+
+
 
 
 });
