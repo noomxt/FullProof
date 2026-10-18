@@ -664,4 +664,120 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
       "실종자 소재 확인 및 종결"
     );
   });
+
+  
+  // ========================================
+  // FullProof v1.1 - Claim 원문 고정 테스트
+  // ========================================
+
+  it("10. Claim v1을 블록체인에 정상 기록한다", async function () {
+    const claimIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("CLAIM-001")
+    );
+
+    const claimHash = ethers.sha256(
+      ethers.toUtf8Bytes("실종자와 통화 완료")
+    );
+
+    await expect(
+      contract.connect(admin).anchorClaim(
+        caseId,
+        0,
+        claimIdHash,
+        1,
+        claimHash
+      )
+    ).to.emit(contract, "ClaimAnchored");
+
+    const length = await contract.getClaimHistoryLength(caseId, 0);
+    expect(length).to.equal(1n);
+
+    const record = await contract.getClaimRecord(caseId, 0, 0);
+
+    expect(record.claimIdHash).to.equal(claimIdHash);
+    expect(record.claimVersion).to.equal(1n);
+    expect(record.claimHash).to.equal(claimHash);
+    expect(record.recorder).to.equal(admin.address);
+    expect(record.recordedAt).to.be.greaterThan(0n);
+  });
+
+  it("11. 동일 Claim ID와 버전의 중복 등록을 차단한다", async function () {
+    const claimIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("CLAIM-001")
+    );
+
+    const claimHash = ethers.sha256(
+      ethers.toUtf8Bytes("실종자와 통화 완료")
+    );
+
+    await contract.connect(admin).anchorClaim(
+      caseId, 0, claimIdHash, 1, claimHash
+    );
+
+    await expect(
+      contract.connect(admin).anchorClaim(
+        caseId, 0, claimIdHash, 1, claimHash
+      )
+    ).to.be.revertedWith("Claim version already registered");
+
+    const length = await contract.getClaimHistoryLength(caseId, 0);
+    expect(length).to.equal(1n);
+  });
+
+  it("12. 권한 없는 지갑의 Claim 등록을 거부한다", async function () {
+    const claimIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("CLAIM-001")
+    );
+
+    const claimHash = ethers.sha256(
+      ethers.toUtf8Bytes("실종자와 통화 완료")
+    );
+
+    await expect(
+      contract.connect(outsider).anchorClaim(
+        caseId, 0, claimIdHash, 1, claimHash
+      )
+    ).to.be.revert(ethers);
+
+    const length = await contract.getClaimHistoryLength(caseId, 0);
+    expect(length).to.equal(0n);
+  });
+
+  it("13. Claim v2 등록 시 v1 이력을 보존한다", async function () {
+    const claimIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("CLAIM-001")
+    );
+
+    const claimHashV1 = ethers.sha256(
+      ethers.toUtf8Bytes("실종자에게 전화했다")
+    );
+
+    const claimHashV2 = ethers.sha256(
+      ethers.toUtf8Bytes("실종자와 통화에 성공했다")
+    );
+
+    await contract.connect(admin).anchorClaim(
+      caseId, 0, claimIdHash, 1, claimHashV1
+    );
+
+    await contract.connect(admin).anchorClaim(
+      caseId, 0, claimIdHash, 2, claimHashV2
+    );
+
+    const length = await contract.getClaimHistoryLength(caseId, 0);
+    expect(length).to.equal(2n);
+
+    const recordV1 = await contract.getClaimRecord(caseId, 0, 0);
+    const recordV2 = await contract.getClaimRecord(caseId, 0, 1);
+
+    expect(recordV1.claimVersion).to.equal(1n);
+    expect(recordV1.claimHash).to.equal(claimHashV1);
+
+    expect(recordV2.claimVersion).to.equal(2n);
+    expect(recordV2.claimHash).to.equal(claimHashV2);
+
+    expect(recordV1.claimHash).to.not.equal(recordV2.claimHash);
+  });
+
+
 });

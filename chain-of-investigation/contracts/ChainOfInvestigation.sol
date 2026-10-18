@@ -131,6 +131,22 @@ contract ChainOfInvestigation is EIP712 {
     mapping(uint256 => mapping(uint256 => uint256)) public latestProofId;
 
     uint256 public nextProofId = 1;
+    
+    // Claim 원문 고정 이력
+    struct ClaimRecord {
+        bytes32 claimIdHash;
+        uint256 claimVersion;
+        bytes32 claimHash;
+        uint64 recordedAt;
+        address recorder;
+    }
+
+    mapping(uint256 => mapping(uint256 => ClaimRecord[]))
+        private claimHistory;
+
+    // 같은 Claim ID와 버전의 중복 등록 방지
+    mapping(bytes32 => bool) public registeredClaimVersions;
+
 
     // -----------------------------
     // Events
@@ -173,6 +189,18 @@ contract ChainOfInvestigation is EIP712 {
         address indexed closer,
         uint256 closedAt
     );
+
+    
+    event ClaimAnchored(
+        uint256 indexed caseId,
+        uint256 indexed stepId,
+        bytes32 indexed claimIdHash,
+        uint256 claimVersion,
+        bytes32 claimHash,
+        address recorder,
+        uint64 recordedAt
+    );
+
 
     // -----------------------------
     // Modifiers
@@ -337,6 +365,98 @@ contract ChainOfInvestigation is EIP712 {
 
         emit StepAdded(caseId, stepIndex, stepName, isRequired);
     }
+
+    
+    function anchorClaim(
+        uint256 caseId,
+        uint256 stepId,
+        bytes32 claimIdHash,
+        uint256 claimVersion,
+        bytes32 claimHash
+    )
+        external
+        onlyOpen(caseId)
+        onlyPoliceOrAdmin
+    {
+        require(
+            stepId < cases[caseId].stepCount,
+            "Invalid step"
+        );
+
+        require(
+            claimIdHash != bytes32(0),
+            "Invalid claim ID"
+        );
+
+        require(
+            claimHash != bytes32(0),
+            "Invalid claim hash"
+        );
+
+        require(
+            claimVersion > 0,
+            "Invalid claim version"
+        );
+
+        bytes32 versionKey = keccak256(
+            abi.encode(
+                caseId,
+                stepId,
+                claimIdHash,
+                claimVersion
+            )
+        );
+
+        require(
+            !registeredClaimVersions[versionKey],
+            "Claim version already registered"
+        );
+
+        registeredClaimVersions[versionKey] = true;
+
+        claimHistory[caseId][stepId].push(
+            ClaimRecord({
+                claimIdHash: claimIdHash,
+                claimVersion: claimVersion,
+                claimHash: claimHash,
+                recordedAt: uint64(block.timestamp),
+                recorder: msg.sender
+            })
+        );
+
+        emit ClaimAnchored(
+            caseId,
+            stepId,
+            claimIdHash,
+            claimVersion,
+            claimHash,
+            msg.sender,
+            uint64(block.timestamp)
+        );
+    }
+
+    
+    function getClaimHistoryLength(
+        uint256 caseId,
+        uint256 stepId
+    ) external view returns (uint256) {
+        return claimHistory[caseId][stepId].length;
+    }
+
+    function getClaimRecord(
+        uint256 caseId,
+        uint256 stepId,
+        uint256 index
+    ) external view returns (ClaimRecord memory) {
+        require(
+            index < claimHistory[caseId][stepId].length,
+            "Invalid claim index"
+        );
+
+        return claimHistory[caseId][stepId][index];
+    }
+
+
 
     // -----------------------------
     // EIP-712 signature verification

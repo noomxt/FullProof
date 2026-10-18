@@ -15,6 +15,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from web3 import Web3
+from hash_utils import hash_claim_text
 
 from database import (
     init_db,
@@ -133,6 +134,12 @@ class CaseCreateSchema(BaseModel):
 class StepCreateSchema(BaseModel):
     step_name: str
     is_required: bool = True
+
+class ClaimCreateSchema(BaseModel):
+    claim_id: str = Field(min_length=1)
+    claim_version: int = Field(ge=1)
+    step_id: int = Field(ge=0)
+    claim_text: str = Field(min_length=1)
 
 class VerifyRequestSchema(BaseModel):
     case_id: str
@@ -287,6 +294,117 @@ def add_case_step(case_id: str, data: StepCreateSchema):
     case["step_count"] = len(case["steps"])
     save_case(case)
     return step
+
+
+@app.post(
+    "/api/v1/cases/{case_id}/claims",
+    status_code=status.HTTP_201_CREATED
+)
+def create_claim(case_id: str, data: ClaimCreateSchema):
+    require_chain()
+
+    # 1. 사건이 존재하는지 확인
+    case = cases_db.get(case_id)
+
+    if not case:
+        raise HTTPException(404, "Case not found")
+
+    if case["is_closed"]:
+        raise HTTPException(400, "Cannot modify closed case")
+
+    # 2. 해당 수사 단계가 존재하는지 확인
+    if data.step_id >= len(case["steps"]):
+        raise HTTPException(400, "Invalid step_id")
+
+    # 3. Claim ID와 원문을 SHA-256으로 해시
+    claim_id_hash = "0x" + hashlib.sha256(
+        data.claim_id.encode("utf-8")
+    ).hexdigest()
+
+    claim_hash = hash_claim_text(data.claim_text)
+
+    # 4. 블록체인에 Claim 기록
+    try:
+        tx_hash = confirmed(
+            contract.functions.anchorClaim(
+                case_uint(case_id),
+                data.step_id,
+                claim_id_hash,
+                data.claim_version,
+                claim_hash
+            ).transact({"from": sender()})
+        )
+
+    except HTTPException:
+        raise
+
+    except Exception as e:
+        raise HTTPException(
+            400,
+            f"On-chain anchorClaim failed: {e}"
+        )
+
+    # 5. 등록 결과 반환
+    return {
+        "schema_version": "1.1",
+        "case_id": case_id,
+        "step_id": data.step_id,
+        "claim_id": data.claim_id,
+        "claim_version": data.claim_version,
+        "claim_text": data.claim_text,
+        "claim_hash": claim_hash,
+        "claim_tx_hash": tx_hash,
+        "chain_status": "CONFIRMED"
+    }
+
+@app.get("/api/v1/cases/{case_id}/steps/{step_id}/claims")
+def get_claim_history(case_id: str, step_id: int):
+    require_chain()
+
+    case = cases_db.get(case_id)
+
+    if not case:
+        raise HTTPException(404, "Case not found")
+
+    if step_id < 0 or step_id >= len(case["steps"]):
+        raise HTTPException(400, "Invalid step_id")
+
+    chain_case_id = case_uint(case_id)
+
+    try:
+        count = contract.functions.getClaimHistoryLength(
+            chain_case_id, step_id
+        ).call()
+
+        records = []
+
+        for index in range(count):
+            record = contract.functions.getClaimRecord(
+                chain_case_id, step_id, index
+            ).call()
+
+            records.append({
+                "claim_id_hash": Web3.to_hex(record[0]),
+                "claim_version": record[1],
+                "claim_hash": Web3.to_hex(record[2]),
+                "recorded_at": record[3],
+                "recorder": record[4]
+            })
+
+    except Exception as e:
+        raise HTTPException(
+            500,
+            f"On-chain Claim lookup failed: {e}"
+        )
+
+    return {
+        "case_id": case_id,
+        "step_id": step_id,
+        "total": count,
+        "claims": records
+    }
+
+
 
 @app.post("/api/v1/cases/verify")
 def verify_and_anchor_step(data: VerifyRequestSchema):
