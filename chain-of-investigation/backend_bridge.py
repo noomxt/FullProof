@@ -27,7 +27,7 @@ class AnalyzeRequest(BaseModel):
     evidence: list[dict] = Field(default_factory=list)
 
 
-def register_ai_routes(app, cases_db, *, trusted_validator=None, policy_pack=None, db_path=None):
+def register_ai_routes(app, cases_db, *, trusted_validator=None, policy_pack=None, db_path=None, verification_resolver=None):
     store = AnalysisStore(db_path or os.getenv('AI_DB_PATH', str(Path(__file__).parent / 'data' / 'ai.sqlite3')))
     # Deliberately fail closed on the unsafe legacy path; keep unrelated routes.
     app.router.routes[:] = [r for r in app.router.routes
@@ -89,6 +89,8 @@ def register_ai_routes(app, cases_db, *, trusted_validator=None, policy_pack=Non
             raise HTTPException(404, 'Case not found')
         return {'case_id': case_id, 'history': store.history(case_id)}
 
+    from verification_v11 import register_v11_routes
+    register_v11_routes(app, resolver=verification_resolver)
     return store
 
 

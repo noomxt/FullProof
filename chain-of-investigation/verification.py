@@ -46,6 +46,10 @@ def normalize_proof(proof):
         raise ValueError('Proof must be an object')
     result = deepcopy(proof)
     aliases = {'occurred_at': 'timestamp'}
+    if 'proof_occurred_at' in result:
+        if 'occurred_at' in result and result['occurred_at'] != result['proof_occurred_at']:
+            raise ValueError('Conflicting occurred_at/proof_occurred_at')
+        result['occurred_at'] = result['proof_occurred_at']
     for new, old in aliases.items():
         if new in result and old in result and result[new] != result[old]:
             raise ValueError(f'Conflicting fields: {new}/{old}')
@@ -59,11 +63,14 @@ def normalize_proof(proof):
             raise ValueError('Conflicting action_result/success')
         result.setdefault('action_result', value)
     if 'result' in result:
-        if result['result'] not in ('SUCCESS', 'FAIL', 'UNKNOWN'):
+        normalized_result = {'CALL_CONNECTED': 'SUCCESS', 'CALL_FAILED': 'FAIL'}.get(result['result'], result['result'])
+        if normalized_result is None:
+            normalized_result = 'UNKNOWN'
+        if normalized_result not in ('SUCCESS', 'FAIL', 'UNKNOWN'):
             raise ValueError('Proof result is an action outcome, not contract status')
-        if 'action_result' in result and result['action_result'] != result['result']:
+        if 'action_result' in result and result['action_result'] != normalized_result:
             raise ValueError('Conflicting action_result/result')
-        result.setdefault('action_result', result['result'])
+        result.setdefault('action_result', normalized_result)
     for key in ('action_type', 'target_id', 'proof_text'):
         if result.get(key) is not None and not isinstance(result[key], str):
             raise ValueError(f'{key} must be string or null')
@@ -152,8 +159,22 @@ def semantic_compare(claim_text, proof_text, field_checks, *, client=None):
             client = create_client()
         response = client.chat.completions.parse(
             model=model_name(),
-            messages=[{'role': 'system', 'content': SEMANTIC_PROMPT},
-                      {'role': 'user', 'content': json.dumps({'claim': claim_text, 'proof': proof_text}, ensure_ascii=False)}],
+            messages=[{
+    'role': 'system',
+    'content': SEMANTIC_PROMPT + (
+        '\nfield_checks는 별도로 수행한 구조화 비교 결과입니다. '
+        'MATCH인 항목이 proof 텍스트에 반복되지 않았다는 이유만으로 '
+        'UNCLEAR로 판단하지 마세요. '
+        '다만 텍스트에 명시적인 충돌이 있으면 반드시 보고하세요. '
+        '나머지 서술 내용의 의미를 비교하고, '
+        '근거 인용은 claim과 proof 원문에서만 추출하세요.'
+    )
+},
+                      {'role': 'user', 'content': json.dumps({
+    'claim': claim_text,
+    'proof': proof_text,
+    'field_checks': field_checks
+}, ensure_ascii=False)}],
             response_format=SemanticExtraction)
         message = response.choices[0].message
         if message.refusal or message.parsed is None:

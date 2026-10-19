@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.1",
+  "case_id": "CASE-001",
+  "step_id": 0,
+  "claim_ref": {
+    "claim_id": "CLAIM-001",
+    "claim_version": 1,
+    "claim_hash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "proof_refs": [
+    {
+      "proof_id": "PROOF-001",
+      "proof_version": 1,
+      "proof_hash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ],
+  "mapping_ids": [
+    "MAP-001"
+  ]
+}

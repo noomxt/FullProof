@@ -1,0 +1,40 @@
+{
+  "claim": {
+    "schema_version": "1.1",
+    "case_id": "CASE-001",
+    "step_id": 0,
+    "claim_id": "CLAIM-001",
+    "claim_version": 1,
+    "claim_text": "SUBJECT-01 통화 성공",
+    "claim_hash": "0x4fe4ad2300607ed1e2f97c8dcf821e0541222692baabf8bdb572a64bede2d9cd",
+    "structured_claim": {
+      "claim_id": "CLAIM-001",
+      "claim_version": 1,
+      "extraction_status": "COMPLETED",
+      "actions": [
+        {
+          "action_type": "PHONE_CALL",
+          "action_result": "SUCCESS",
+          "target_id": "SUBJECT-01",
+          "occurred_at": "2026-10-18T05:00:00Z",
+          "source_excerpt": "SUBJECT-01 통화 성공"
+        }
+      ]
+    }
+  },
+  "proofs": [],
+  "mappings": [],
+  "policy": {
+    "schema_version": "1.1",
+    "policy_id": "CALL_VERIFICATION",
+    "policy_version": "policy-v1",
+    "required_fields": [
+      "action_result",
+      "action_type",
+      "target_id"
+    ],
+    "time_tolerance_seconds": 600,
+    "proof_mapping_required": true,
+    "semantic_analysis_required": false
+  }
+}

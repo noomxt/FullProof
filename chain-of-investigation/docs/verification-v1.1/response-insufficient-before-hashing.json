@@ -1,0 +1,30 @@
+{
+  "success": true,
+  "data": {
+    "schema_version": "1.1",
+    "verification_id": "VERIFY-002",
+    "case_id": "CASE-001",
+    "step_id": 0,
+    "claim_ref": {
+      "claim_id": "CLAIM-001",
+      "claim_version": 1,
+      "claim_hash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "proof_refs": [],
+    "processing_status": "COMPLETED",
+    "verdict": "INSUFFICIENT",
+    "conflicts": [],
+    "missing_information": [
+      "PROOF_MISSING"
+    ],
+    "reason_text": "기관 Proof가 없어 최종 비교에 필요한 근거가 부족합니다.",
+    "evidence_refs": [],
+    "review_required": true,
+    "decision_policy_version": "policy-v1",
+    "policy_hash": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "proof_refs_hash": null,
+    "verification_hash": null,
+    "verification_tx_hash": null
+  },
+  "error": null
+}
