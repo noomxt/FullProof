@@ -35,6 +35,14 @@ contract ChainOfInvestigation is EIP712 {
         EXPIRING_SOON
     }
 
+     // FullProof v1.1: AI + Rule Engine 최종 검증 판정
+    enum VerificationVerdict {
+        NONE,
+        SUPPORTED,
+        CONTRADICTED,
+        INSUFFICIENT
+    }
+
     enum CaseStatus {
         OPEN,
         CLOSED
@@ -107,7 +115,7 @@ contract ChainOfInvestigation is EIP712 {
     bytes32 private constant PROOF_TYPEHASH = keccak256(
         "Proof(uint256 caseId,uint256 stepId,bytes32 claimHash,bytes32 proofHash,uint8 result,uint64 evidenceTimestamp,uint256 nonce,uint64 deadline,address agency)"
     );
-    
+
     // FullProof v1.1: 기관이 자신의 Proof에 대해서만 서명
     struct ProofAttestation {
         uint256 caseId;
@@ -121,7 +129,7 @@ contract ChainOfInvestigation is EIP712 {
         uint64 deadline;
     }
 
-    
+
     // FullProof v1.1 - 기관이 독립적으로 등록한 Proof 기록
     struct AgencyProofRecord {
         bytes32 proofIdHash;
@@ -133,18 +141,45 @@ contract ChainOfInvestigation is EIP712 {
         uint64 recordedAt;
         bytes32 signatureDigest;
     }
+    // FullProof v1.1: AI + Rule Engine 검증 결과 이력
+    struct VerificationRecord {
+        bytes32 verificationIdHash;
+
+        // 검증 대상 Claim의 ID, 버전, 원문 해시
+        bytes32 claimIdHash;
+        uint256 claimVersion;
+        bytes32 claimHash;
+
+        // 검증에 사용된 Proof 목록 및 정책 해시
+        bytes32 proofRefsHash;
+        bytes32 policyHash;
+
+        // Verification 전체 결과 해시
+        bytes32 verificationHash;
+
+        // 최종 판정
+        VerificationVerdict verdict;
+
+        // 블록체인 기록 정보
+        uint64 recordedAt;
+        address recorder;
+    }
+
+
 
 
     bytes32 private constant PROOF_ATTESTATION_TYPEHASH = keccak256(
         "ProofAttestation(uint256 caseId,uint256 stepId,bytes32 proofIdHash,bytes32 proofHash,uint64 occurredAt,uint64 issuedAt,address agency,uint256 nonce,uint64 deadline)"
     );
 
-
     // -----------------------------
     // Storage
     // -----------------------------
 
     address public admin;
+
+    // FullProof v1.1: Verification 결과 기록 권한
+    mapping(address => bool) public isVerificationRecorder;
 
     // 기존 코드와의 호환성을 위해 유지
     mapping(address => bool) public isPolice;
@@ -160,7 +195,7 @@ contract ChainOfInvestigation is EIP712 {
 
     // Step별 Proof history. 원본 이력은 지우지 않는다.
     mapping(uint256 => mapping(uint256 => ProofRecord[])) private proofHistory;
-    
+
     // FullProof v1.1 - 기존 검증 이력과 분리된 기관 Proof 이력
     mapping(uint256 => mapping(uint256 => AgencyProofRecord[]))
         private agencyProofHistory;
@@ -171,7 +206,7 @@ contract ChainOfInvestigation is EIP712 {
     mapping(uint256 => mapping(uint256 => uint256)) public latestProofId;
 
     uint256 public nextProofId = 1;
-    
+
     // Claim 원문 고정 이력
     struct ClaimRecord {
         bytes32 claimIdHash;
@@ -187,6 +222,11 @@ contract ChainOfInvestigation is EIP712 {
     // 같은 Claim ID와 버전의 중복 등록 방지
     mapping(bytes32 => bool) public registeredClaimVersions;
 
+    // FullProof v1.1: 사건별·단계별 Verification 이력
+    mapping(uint256 => mapping(uint256 => VerificationRecord[]))
+        private verificationHistory;
+    // 동일 Verification ID 중복 기록 방지
+    mapping(bytes32 => bool) public registeredVerificationIds;
 
     // -----------------------------
     // Events
@@ -199,6 +239,12 @@ contract ChainOfInvestigation is EIP712 {
     );
 
     event AgencyStatusChanged(address indexed agency, bool active);
+
+    // Verification 기록자 권한 변경 이력
+    event VerificationRecorderUpdated(
+        address indexed recorder,
+        bool authorized
+    );
     event AgencySignerChanged(address indexed agency, address indexed oldSigner, address indexed newSigner);
 
     event CaseCreated(uint256 indexed caseId, address indexed creator, uint256 createdAt);
@@ -223,7 +269,7 @@ contract ChainOfInvestigation is EIP712 {
         bytes32 signatureDigest
     );
 
-    
+
     event AgencyProofAnchored(
         uint256 indexed caseId,
         uint256 indexed stepId,
@@ -245,7 +291,7 @@ contract ChainOfInvestigation is EIP712 {
         uint256 closedAt
     );
 
-    
+
     event ClaimAnchored(
         uint256 indexed caseId,
         uint256 indexed stepId,
@@ -256,6 +302,16 @@ contract ChainOfInvestigation is EIP712 {
         uint64 recordedAt
     );
 
+    // FullProof v1.1: Verification 결과 온체인 기록 이벤트
+    event VerificationAnchored(
+        uint256 indexed caseId,
+        uint256 indexed stepId,
+        bytes32 indexed verificationIdHash,
+        bytes32 verificationHash,
+        VerificationVerdict verdict,
+        address recorder,
+        uint64 recordedAt
+    );
 
     // -----------------------------
     // Modifiers
@@ -265,6 +321,16 @@ contract ChainOfInvestigation is EIP712 {
         require(msg.sender == admin, "Only Admin can do this");
         _;
     }
+
+    // Verification 결과는 허용된 시스템 기록자만 등록
+    modifier onlyVerificationRecorder() {
+        require(
+            isVerificationRecorder[msg.sender],
+            "Not authorized verification recorder"
+        );
+        _;
+    }
+
 
     modifier onlyPoliceOrAdmin() {
         require(msg.sender == admin || isPolice[msg.sender], "Only Police/Admin can do this");
@@ -299,6 +365,19 @@ contract ChainOfInvestigation is EIP712 {
 
         emit AgencyRegistered(msg.sender, AgencyType.POLICE, msg.sender);
     }
+
+    // 관리자만 Verification 기록자를 등록하거나 해제할 수 있음
+    function setVerificationRecorder(
+        address recorder,
+        bool authorized
+    ) external onlyAdmin {
+        require(recorder != address(0), "Invalid recorder");
+
+        isVerificationRecorder[recorder] = authorized;
+
+        emit VerificationRecorderUpdated(recorder, authorized);
+    }
+
 
     // -----------------------------
     // Agency management
@@ -421,7 +500,7 @@ contract ChainOfInvestigation is EIP712 {
         emit StepAdded(caseId, stepIndex, stepName, isRequired);
     }
 
-    
+
     function anchorClaim(
         uint256 caseId,
         uint256 stepId,
@@ -490,7 +569,7 @@ contract ChainOfInvestigation is EIP712 {
         );
     }
 
-    
+
     function getClaimHistoryLength(
         uint256 caseId,
         uint256 stepId
@@ -511,13 +590,161 @@ contract ChainOfInvestigation is EIP712 {
         return claimHistory[caseId][stepId][index];
     }
 
+    // FullProof v1.1: 등록된 Claim ID·버전·해시 일치 확인
+    function isRegisteredClaim(
+        uint256 caseId,
+        uint256 stepId,
+        bytes32 claimIdHash,
+        uint256 claimVersion,
+        bytes32 claimHash
+    ) public view returns (bool) {
+
+        if (!cases[caseId].exists) {
+            return false;
+        }
+
+        if (stepId >= cases[caseId].stepCount) {
+            return false;
+        }
+
+        ClaimRecord[] storage records = claimHistory[caseId][stepId];
+
+        for (uint256 i = 0; i < records.length; i++) {
+            if (
+                records[i].claimIdHash == claimIdHash &&
+                records[i].claimVersion == claimVersion &&
+                records[i].claimHash == claimHash
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // FullProof v1.1: 최종 Verification 결과 독립 기록
+    function anchorVerification(
+        uint256 caseId,
+        uint256 stepId,
+        bytes32 verificationIdHash,
+        bytes32 claimIdHash,
+        uint256 claimVersion,
+        bytes32 claimHash,
+        bytes32 proofRefsHash,
+        bytes32 policyHash,
+        bytes32 verificationHash,
+        VerificationVerdict verdict
+    )
+        external
+        onlyOpen(caseId)
+        onlyVerificationRecorder
+    {
+        require(
+            stepId < cases[caseId].stepCount,
+            "Invalid step"
+        );
+
+        require(
+            verificationIdHash != bytes32(0),
+            "Invalid verification ID"
+        );
+
+        require(
+            verificationHash != bytes32(0),
+            "Invalid verification hash"
+        );
+
+        require(
+            proofRefsHash != bytes32(0),
+            "Invalid proof refs hash"
+        );
+
+        require(
+            policyHash != bytes32(0),
+            "Invalid policy hash"
+        );
+
+        require(
+            verdict != VerificationVerdict.NONE,
+            "Invalid final verdict"
+        );
+
+        require(
+            isRegisteredClaim(
+                caseId,
+                stepId,
+                claimIdHash,
+                claimVersion,
+                claimHash
+            ),
+            "Claim reference mismatch"
+        );
+
+        require(
+            !registeredVerificationIds[verificationIdHash],
+            "Verification already registered"
+        );
+
+        registeredVerificationIds[verificationIdHash] = true;
+
+        verificationHistory[caseId][stepId].push(
+            VerificationRecord({
+                verificationIdHash: verificationIdHash,
+                claimIdHash: claimIdHash,
+                claimVersion: claimVersion,
+                claimHash: claimHash,
+                proofRefsHash: proofRefsHash,
+                policyHash: policyHash,
+                verificationHash: verificationHash,
+                verdict: verdict,
+                recordedAt: uint64(block.timestamp),
+                recorder: msg.sender
+            })
+        );
+
+        emit VerificationAnchored(
+            caseId,
+            stepId,
+            verificationIdHash,
+            verificationHash,
+            verdict,
+            msg.sender,
+            uint64(block.timestamp)
+        );
+    }
+
+    // FullProof v1.1: 해당 사건·단계의 Verification 기록 개수
+    function getVerificationHistoryLength(
+        uint256 caseId,
+        uint256 stepId
+    ) external view returns (uint256) {
+        return verificationHistory[caseId][stepId].length;
+    }
+
+    // FullProof v1.1: 특정 Verification 기록 조회
+    function getVerificationRecord(
+        uint256 caseId,
+        uint256 stepId,
+        uint256 index
+    ) external view returns (VerificationRecord memory) {
+        require(
+            index < verificationHistory[caseId][stepId].length,
+            "Invalid verification index"
+        );
+
+        return verificationHistory[caseId][stepId][index];
+    }
+
+
+
+
 
 
     // -----------------------------
     // EIP-712 signature verification
     // -----------------------------
 
-    
+
     // FullProof v1.1 - 기관 독립 Proof EIP-712 해시
     function getProofAttestationTypedDataHash(
         ProofAttestation memory request
@@ -540,7 +767,7 @@ contract ChainOfInvestigation is EIP712 {
 
         return _hashTypedDataV4(structHash);
     }
-    
+
     // FullProof v1.1 - Proof 전자서명에서 서명자 주소 복구
     function recoverProofAttestationSigner(
         ProofAttestation calldata request,
@@ -667,7 +894,7 @@ contract ChainOfInvestigation is EIP712 {
             digest
         );
     }
-    
+
     // FullProof v1.1 - 기관 독립 Proof 등록
     function anchorProofAttestation(
         ProofAttestation calldata request,
@@ -784,7 +1011,7 @@ contract ChainOfInvestigation is EIP712 {
             digest
         );
     }
-    
+
     // FullProof v1.1 - 기관 Proof 이력 개수 조회
     function getAgencyProofHistoryLength(
         uint256 caseId,

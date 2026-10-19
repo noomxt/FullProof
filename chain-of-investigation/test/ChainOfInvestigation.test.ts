@@ -665,7 +665,7 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
     );
   });
 
-  
+
   // ========================================
   // FullProof v1.1 - Claim 원문 고정 테스트
   // ========================================
@@ -778,7 +778,7 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
 
     expect(recordV1.claimHash).to.not.equal(recordV2.claimHash);
   });
-  
+
   it("14. 통신사 공식 서명으로 독립 Proof를 기록한다", async function () {
     const proofIdHash = ethers.sha256(
       ethers.toUtf8Bytes("PROOF-TELECOM-001")
@@ -857,7 +857,7 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
       await contract.agencyNonces(telecom.address)
     ).to.equal(nonce + 1n);
   });
-  
+
   it("15. 다른 기관이 통신사 Proof에 서명하면 거부한다", async function () {
     const latestBlock = await ethers.provider.getBlock("latest");
 
@@ -920,7 +920,7 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
       await contract.agencyNonces(telecom.address)
     ).to.equal(request.nonce);
   });
-  
+
   it("16. 동일한 Proof 전자서명의 재사용을 차단한다", async function () {
     const latestBlock = await ethers.provider.getBlock("latest");
 
@@ -990,7 +990,7 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
       await contract.agencyNonces(telecom.address)
     ).to.equal(request.nonce + 1n);
   });
-  
+
   it("17. 만료된 기관 Proof 전자서명을 거부한다", async function () {
     const latestBlock = await ethers.provider.getBlock("latest");
 
@@ -1054,7 +1054,7 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
       await contract.agencyNonces(telecom.address)
     ).to.equal(request.nonce);
   });
-  
+
   it("18. 새로운 서명이어도 동일 Proof ID 중복 등록을 차단한다", async function () {
     const latestBlock = await ethers.provider.getBlock("latest");
 
@@ -1135,7 +1135,7 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
       await contract.agencyNonces(telecom.address)
     ).to.equal(request2.nonce);
   });
-  
+
   it("19. 기관 Proof 등록 후 온체인 이력을 정확히 조회한다", async function () {
     const latestBlock = await ethers.provider.getBlock("latest");
 
@@ -1218,11 +1218,440 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
     expect(step.status).to.equal(BigInt(STATUS.PENDING));
   });
 
+  it("20. 등록되지 않은 계정은 Verification을 기록할 수 없다", async function () {
+    const verificationIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("VERIFY-UNAUTHORIZED-001")
+    );
+
+    const claimIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("CLAIM-001")
+    );
+
+    const claimHash = ethers.sha256(
+      ethers.toUtf8Bytes("테스트 Claim 원문")
+    );
+
+    const proofRefsHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-PROOF-REFS")
+    );
+
+    const policyHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-POLICY")
+    );
+
+    const verificationHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-VERIFICATION")
+    );
 
 
+    await expect(
+      contract.connect(outsider).anchorVerification(
+        caseId,
+        0,
+        verificationIdHash,
+        claimIdHash,
+        1,
+        claimHash,
+        proofRefsHash,
+        policyHash,
+        verificationHash,
+        1
+      )
+    ).to.be.revertedWith(
+      "Not authorized verification recorder"
+    );
+
+  });
 
 
+  it("21. 관리자만 Verification 기록자 권한을 설정할 수 있다", async function () {
+    const recorderAddress = await police.getAddress();
+
+    // 권한이 없는 일반 사용자의 등록 시도는 거부
+    await expect(
+      contract.connect(outsider).setVerificationRecorder(
+        recorderAddress,
+        true
+      )
+    ).to.be.revertedWith("Only Admin can do this");
+
+    // 관리자는 시스템 기록자 권한을 부여할 수 있음
+    await contract.connect(admin).setVerificationRecorder(
+      recorderAddress,
+      true
+    );
+
+    expect(
+      await contract.isVerificationRecorder(recorderAddress)
+    ).to.equal(true);
+
+    // 관리자는 권한을 다시 해제할 수도 있음
+    await contract.connect(admin).setVerificationRecorder(
+      recorderAddress,
+      false
+    );
+
+    expect(
+      await contract.isVerificationRecorder(recorderAddress)
+    ).to.equal(false);
+  });
 
 
+  it("22. 등록된 Claim을 참조해 Verification을 기록하고 조회할 수 있다", async function () {
+    const claimIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("CLAIM-VERIFY-001")
+    );
+
+    const claimHash = ethers.sha256(
+      ethers.toUtf8Bytes("수사관이 통화 연결에 성공했다고 기록했다.")
+    );
+
+    const verificationIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("VERIFY-001")
+    );
+
+    // 이번 테스트에서는 형식 확인용 해시 사용
+    const proofRefsHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-PROOF-REFS")
+    );
+
+    const policyHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-POLICY")
+    );
+
+    const verificationHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-VERIFICATION")
+    );
+
+    // 1. Claim 원문 해시를 먼저 블록체인에 기록
+    await contract.connect(admin).anchorClaim(
+      caseId,
+      0,
+      claimIdHash,
+      1,
+      claimHash
+    );
+
+    // 2. 관리자 계정이 시스템 기록자 권한 부여
+    const recorderAddress = await police.getAddress();
+
+    await contract.connect(admin).setVerificationRecorder(
+      recorderAddress,
+      true
+    );
+
+    // 3. 시스템 기록자가 Verification 결과 등록
+    await contract.connect(police).anchorVerification(
+      caseId,
+      0,
+      verificationIdHash,
+      claimIdHash,
+      1,
+      claimHash,
+      proofRefsHash,
+      policyHash,
+      verificationHash,
+      2 // CONTRADICTED
+    );
+
+    // 4. Verification 이력 개수 확인
+    const count = await contract.getVerificationHistoryLength(
+      caseId,
+      0
+    );
+
+    expect(count).to.equal(1n);
+
+    // 5. 온체인에 저장된 Verification 조회
+    const record = await contract.getVerificationRecord(
+      caseId,
+      0,
+      0
+    );
+
+    expect(record.verificationIdHash).to.equal(verificationIdHash);
+    expect(record.claimIdHash).to.equal(claimIdHash);
+    expect(record.claimVersion).to.equal(1n);
+    expect(record.claimHash).to.equal(claimHash);
+    expect(record.proofRefsHash).to.equal(proofRefsHash);
+    expect(record.policyHash).to.equal(policyHash);
+    expect(record.verificationHash).to.equal(verificationHash);
+    expect(record.verdict).to.equal(2n);
+    expect(record.recorder).to.equal(recorderAddress);
+
+    // 6. Verification을 등록해도 Step은 자동 검증 완료되지 않음
+    const step = await contract.getStepInfo(caseId, 0);
+
+    expect(step[3]).to.equal(0n); // PENDING
+    expect(step[4]).to.equal(false); // isCompleted
+  });
+
+
+  it("23. Claim 해시가 다르면 Verification 등록을 거부한다", async function () {
+    const claimIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("CLAIM-CHECK-001")
+    );
+
+    const claimHash = ethers.sha256(
+      ethers.toUtf8Bytes("원본 Claim")
+    );
+
+    const wrongClaimHash = ethers.sha256(
+      ethers.toUtf8Bytes("변조된 Claim")
+    );
+
+    const verificationIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("VERIFY-WRONG-CLAIM")
+    );
+
+    const proofRefsHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-PROOF-REFS")
+    );
+
+    const policyHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-POLICY")
+    );
+
+    const verificationHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-VERIFICATION")
+    );
+
+    // 실제 Claim 등록
+    await contract.connect(admin).anchorClaim(
+      caseId,
+      0,
+      claimIdHash,
+      1,
+      claimHash
+    );
+
+    // 경찰 테스트 계정에 Verification 기록 권한 부여
+    await contract.connect(admin).setVerificationRecorder(
+      await police.getAddress(),
+      true
+    );
+
+    // 존재하는 Claim ID·버전이지만 해시가 다른 경우
+    await expect(
+      contract.connect(police).anchorVerification(
+        caseId,
+        0,
+        verificationIdHash,
+        claimIdHash,
+        1,
+        wrongClaimHash,
+        proofRefsHash,
+        policyHash,
+        verificationHash,
+        1
+      )
+    ).to.be.revertedWith("Claim reference mismatch");
+
+    // 거부된 거래는 이력에 남지 않아야 함
+    expect(
+      await contract.getVerificationHistoryLength(caseId, 0)
+    ).to.equal(0n);
+  });
+
+
+  it("24. 동일 Verification ID의 중복 등록을 차단한다", async function () {
+    const claimIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("CLAIM-DUPLICATE-001")
+    );
+
+    const claimHash = ethers.sha256(
+      ethers.toUtf8Bytes("중복 등록 테스트용 Claim 원문")
+    );
+
+    const verificationIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("VERIFY-DUPLICATE-001")
+    );
+
+    // 이번 테스트에서는 형식 확인용 해시를 사용
+    const proofRefsHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-PROOF-REFS")
+    );
+
+    const policyHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-POLICY")
+    );
+
+    const verificationHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-VERIFICATION")
+    );
+
+    // 1. Claim 등록
+    await contract.connect(admin).anchorClaim(
+      caseId,
+      0,
+      claimIdHash,
+      1,
+      claimHash
+    );
+
+    // 2. 시스템 기록자 권한 부여
+    await contract.connect(admin).setVerificationRecorder(
+      await police.getAddress(),
+      true
+    );
+
+    // 3. 첫 번째 Verification 등록 성공
+    await contract.connect(police).anchorVerification(
+      caseId,
+      0,
+      verificationIdHash,
+      claimIdHash,
+      1,
+      claimHash,
+      proofRefsHash,
+      policyHash,
+      verificationHash,
+      1 // SUPPORTED
+    );
+
+    // 4. 똑같은 Verification ID로 다시 등록 시도
+    await expect(
+      contract.connect(police).anchorVerification(
+        caseId,
+        0,
+        verificationIdHash,
+        claimIdHash,
+        1,
+        claimHash,
+        proofRefsHash,
+        policyHash,
+        verificationHash,
+        1
+      )
+    ).to.be.revertedWith("Verification already registered");
+
+    // 5. 첫 번째 기록만 보존됐는지 확인
+    expect(
+      await contract.getVerificationHistoryLength(caseId, 0)
+    ).to.equal(1n);
+
+    expect(
+      await contract.registeredVerificationIds(verificationIdHash)
+    ).to.equal(true);
+  });
+
+
+  it("25. 재검증 시 기존 Verification 이력을 보존한다", async function () {
+    const claimIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("CLAIM-REVERIFY-001")
+    );
+
+    const claimHashV1 = ethers.sha256(
+      ethers.toUtf8Bytes("통화 연결에 성공했다.")
+    );
+
+    const claimHashV2 = ethers.sha256(
+      ethers.toUtf8Bytes("통화 연결에 실패했다.")
+    );
+
+    const verificationIdV1 = ethers.sha256(
+      ethers.toUtf8Bytes("VERIFY-REVERIFY-001")
+    );
+
+    const verificationIdV2 = ethers.sha256(
+      ethers.toUtf8Bytes("VERIFY-REVERIFY-002")
+    );
+
+    // 테스트용 해시: 실제 JCS 결과는 아님
+    const proofRefsHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-PROOF-REFS")
+    );
+
+    const policyHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-POLICY")
+    );
+
+    const verificationHashV1 = ethers.sha256(
+      ethers.toUtf8Bytes("VERIFICATION-V1")
+    );
+
+    const verificationHashV2 = ethers.sha256(
+      ethers.toUtf8Bytes("VERIFICATION-V2")
+    );
+
+    // 1. Claim v1 등록
+    await contract.connect(admin).anchorClaim(
+      caseId, 0, claimIdHash, 1, claimHashV1
+    );
+
+    // 2. 시스템 기록자 권한 부여
+    await contract.connect(admin).setVerificationRecorder(
+      await police.getAddress(),
+      true
+    );
+
+    // 3. 첫 번째 Verification 등록
+    await contract.connect(police).anchorVerification(
+      caseId,
+      0,
+      verificationIdV1,
+      claimIdHash,
+      1,
+      claimHashV1,
+      proofRefsHash,
+      policyHash,
+      verificationHashV1,
+      2 // CONTRADICTED
+    );
+
+    // 4. Claim v2 등록
+    await contract.connect(admin).anchorClaim(
+      caseId, 0, claimIdHash, 2, claimHashV2
+    );
+
+    // 5. 두 번째 Verification 등록
+    await contract.connect(police).anchorVerification(
+      caseId,
+      0,
+      verificationIdV2,
+      claimIdHash,
+      2,
+      claimHashV2,
+      proofRefsHash,
+      policyHash,
+      verificationHashV2,
+      1 // SUPPORTED
+    );
+
+    // 6. Verification 이력이 2개인지 확인
+    const count = await contract.getVerificationHistoryLength(
+      caseId, 0
+    );
+
+    expect(count).to.equal(2n);
+
+    // 7. 첫 번째 기록이 그대로 남아 있는지 확인
+    const first = await contract.getVerificationRecord(
+      caseId, 0, 0
+    );
+
+    expect(first.verificationIdHash).to.equal(verificationIdV1);
+    expect(first.claimVersion).to.equal(1n);
+    expect(first.claimHash).to.equal(claimHashV1);
+    expect(first.verificationHash).to.equal(verificationHashV1);
+    expect(first.verdict).to.equal(2n);
+
+    // 8. 두 번째 기록 확인
+    const second = await contract.getVerificationRecord(
+      caseId, 0, 1
+    );
+
+    expect(second.verificationIdHash).to.equal(verificationIdV2);
+    expect(second.claimVersion).to.equal(2n);
+    expect(second.claimHash).to.equal(claimHashV2);
+    expect(second.verificationHash).to.equal(verificationHashV2);
+    expect(second.verdict).to.equal(1n);
+
+    // 9. 기존 Step 상태는 여전히 PENDING
+    const step = await contract.getStepInfo(caseId, 0);
+
+    expect(step[3]).to.equal(0n);
+    expect(step[4]).to.equal(false);
+  });
 
 });

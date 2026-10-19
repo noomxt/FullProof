@@ -301,10 +301,37 @@ def hash_verification(verification: dict) -> str:
     if calculated_refs_hash != verification["proof_refs_hash"]:
         raise ValueError("proof_refs_hash mismatch")
 
+
     normalized = dict(verification)
+
     normalized["proof_refs"] = sorted(
         verification["proof_refs"],
         key=lambda ref: (ref["proof_id"], ref["proof_version"])
+    )
+
+
+    def conflict_value_key(value):
+        if value is None:
+            return (0, "")
+
+        if isinstance(value, str):
+            return (1, value)
+
+        raise ValueError("conflict values must be strings or null")
+
+    normalized["conflicts"] = sorted(
+        verification["conflicts"],
+        key=lambda item: (
+            item["field"],
+            item["reason_code"],
+            conflict_value_key(item["claim_value"]),
+            conflict_value_key(item["proof_value"]),
+        )
+    )
+
+
+    normalized["missing_information"] = sorted(
+        verification["missing_information"]
     )
 
     normalized["evidence_refs"] = sorted(
