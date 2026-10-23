@@ -42,6 +42,14 @@ contract ChainOfInvestigation is EIP712 {
         CONTRADICTED,
         INSUFFICIENT
     }
+    
+    // FullProof v1.1: 관리자 확인 조치 유형
+    enum VerificationReviewAction {
+        NONE,
+        APPROVE,
+        CONFIRM,
+        REQUEST_CHANGES
+    }
 
     enum CaseStatus {
         OPEN,
@@ -118,9 +126,10 @@ contract ChainOfInvestigation is EIP712 {
 
     // FullProof v1.1: 기관이 자신의 Proof에 대해서만 서명
     struct ProofAttestation {
-        uint256 caseId;
+         uint256 caseId;
         uint256 stepId;
         bytes32 proofIdHash;
+        uint256 proofVersion;
         bytes32 proofHash;
         uint64 occurredAt;
         uint64 issuedAt;
@@ -133,6 +142,7 @@ contract ChainOfInvestigation is EIP712 {
     // FullProof v1.1 - 기관이 독립적으로 등록한 Proof 기록
     struct AgencyProofRecord {
         bytes32 proofIdHash;
+        uint256 proofVersion;
         bytes32 proofHash;
         address agency;
         address signer;
@@ -154,6 +164,9 @@ contract ChainOfInvestigation is EIP712 {
         bytes32 proofRefsHash;
         bytes32 policyHash;
 
+        // Verification 기록 당시 등록된 기관 Proof 이력 개수
+        uint256 proofHistoryCount;
+
         // Verification 전체 결과 해시
         bytes32 verificationHash;
 
@@ -165,12 +178,20 @@ contract ChainOfInvestigation is EIP712 {
         address recorder;
     }
 
-
-
-
+    
+    // FullProof v1.1: Verification 관리자 확인 이력
+    struct VerificationReviewRecord {
+        bytes32 verificationIdHash;
+        bytes32 verificationHash;
+        VerificationReviewAction action;
+        address reviewer;
+        uint64 reviewedAt;
+    }
+    
     bytes32 private constant PROOF_ATTESTATION_TYPEHASH = keccak256(
-        "ProofAttestation(uint256 caseId,uint256 stepId,bytes32 proofIdHash,bytes32 proofHash,uint64 occurredAt,uint64 issuedAt,address agency,uint256 nonce,uint64 deadline)"
+        "ProofAttestation(uint256 caseId,uint256 stepId,bytes32 proofIdHash,uint256 proofVersion,bytes32 proofHash,uint64 occurredAt,uint64 issuedAt,address agency,uint256 nonce,uint64 deadline)"
     );
+
 
     // -----------------------------
     // Storage
@@ -212,10 +233,11 @@ contract ChainOfInvestigation is EIP712 {
         bytes32 claimIdHash;
         uint256 claimVersion;
         bytes32 claimHash;
+        bytes32 authorIdHash;
+        uint64 inputAt;
         uint64 recordedAt;
         address recorder;
     }
-
     mapping(uint256 => mapping(uint256 => ClaimRecord[]))
         private claimHistory;
 
@@ -227,6 +249,10 @@ contract ChainOfInvestigation is EIP712 {
         private verificationHistory;
     // 동일 Verification ID 중복 기록 방지
     mapping(bytes32 => bool) public registeredVerificationIds;
+    
+    // FullProof v1.1: 사건·단계별 관리자 확인 이력
+    mapping(uint256 => mapping(uint256 => VerificationReviewRecord[]))
+        private verificationReviewHistory;
 
     // -----------------------------
     // Events
@@ -274,6 +300,7 @@ contract ChainOfInvestigation is EIP712 {
         uint256 indexed caseId,
         uint256 indexed stepId,
         bytes32 indexed proofIdHash,
+        uint256 proofVersion,
         bytes32 proofHash,
         address agency,
         address signer,
@@ -292,15 +319,19 @@ contract ChainOfInvestigation is EIP712 {
     );
 
 
+    
     event ClaimAnchored(
         uint256 indexed caseId,
         uint256 indexed stepId,
         bytes32 indexed claimIdHash,
         uint256 claimVersion,
         bytes32 claimHash,
+        bytes32 authorIdHash,
+        uint64 inputAt,
         address recorder,
         uint64 recordedAt
     );
+
 
     // FullProof v1.1: Verification 결과 온체인 기록 이벤트
     event VerificationAnchored(
@@ -311,6 +342,17 @@ contract ChainOfInvestigation is EIP712 {
         VerificationVerdict verdict,
         address recorder,
         uint64 recordedAt
+    );
+    
+    // FullProof v1.1: 관리자 확인 조치 기록 이벤트
+    event VerificationReviewAnchored(
+        uint256 indexed caseId,
+        uint256 indexed stepId,
+        bytes32 indexed verificationIdHash,
+        bytes32 verificationHash,
+        VerificationReviewAction action,
+        address reviewer,
+        uint64 reviewedAt
     );
 
     // -----------------------------
@@ -352,7 +394,7 @@ contract ChainOfInvestigation is EIP712 {
     // Constructor
     // -----------------------------
 
-    constructor() EIP712("FullProof", "1") {
+    constructor() EIP712("FullProof", "2") {
         admin = msg.sender;
 
         // 배포자를 관리자 + 경찰 기관 지갑으로 등록
@@ -501,12 +543,15 @@ contract ChainOfInvestigation is EIP712 {
     }
 
 
+    
     function anchorClaim(
         uint256 caseId,
         uint256 stepId,
         bytes32 claimIdHash,
         uint256 claimVersion,
-        bytes32 claimHash
+        bytes32 claimHash,
+        bytes32 authorIdHash,
+        uint64 inputAt
     )
         external
         onlyOpen(caseId)
@@ -525,6 +570,18 @@ contract ChainOfInvestigation is EIP712 {
         require(
             claimHash != bytes32(0),
             "Invalid claim hash"
+        );
+        
+        // 원본 작성자 식별자 필수
+        require(
+            authorIdHash != bytes32(0),
+            "Invalid author ID"
+        );
+
+        // 원본 입력 시각은 0이거나 미래일 수 없음
+        require(
+            inputAt > 0 && inputAt <= block.timestamp,
+            "Invalid input time"
         );
 
         require(
@@ -553,6 +610,8 @@ contract ChainOfInvestigation is EIP712 {
                 claimIdHash: claimIdHash,
                 claimVersion: claimVersion,
                 claimHash: claimHash,
+                authorIdHash: authorIdHash,
+                inputAt: inputAt,
                 recordedAt: uint64(block.timestamp),
                 recorder: msg.sender
             })
@@ -564,6 +623,8 @@ contract ChainOfInvestigation is EIP712 {
             claimIdHash,
             claimVersion,
             claimHash,
+            authorIdHash,
+            inputAt,
             msg.sender,
             uint64(block.timestamp)
         );
@@ -588,6 +649,127 @@ contract ChainOfInvestigation is EIP712 {
         );
 
         return claimHistory[caseId][stepId][index];
+    }
+    
+    // FullProof v1.1: 사건·단계별 가장 최근에 등록된 Claim 조회
+    function getLatestClaim(
+        uint256 caseId,
+        uint256 stepId
+    ) external view caseExists(caseId) returns (ClaimRecord memory) {
+        require(
+            stepId < cases[caseId].stepCount,
+            "Invalid step"
+        );
+
+        uint256 count = claimHistory[caseId][stepId].length;
+
+        require(
+            count > 0,
+            "No claim record"
+        );
+
+        return claimHistory[caseId][stepId][count - 1];
+    }
+    
+    // FullProof v1.1: 최신 Verification이 최신 Claim을 참조하는지 검사
+    function isLatestClaimVerified(
+        uint256 caseId,
+        uint256 stepId
+    ) public view caseExists(caseId) returns (bool) {
+        require(
+            stepId < cases[caseId].stepCount,
+            "Invalid step"
+        );
+
+        uint256 claimCount = claimHistory[caseId][stepId].length;
+        uint256 verificationCount =
+            verificationHistory[caseId][stepId].length;
+
+        // Claim 또는 Verification이 없으면 검증 불충분
+        if (claimCount == 0 || verificationCount == 0) {
+            return false;
+        }
+
+        ClaimRecord storage latestClaim =
+            claimHistory[caseId][stepId][claimCount - 1];
+
+        VerificationRecord storage latestVerification =
+            verificationHistory[caseId][stepId][verificationCount - 1];
+
+        return (
+            latestClaim.claimIdHash == latestVerification.claimIdHash &&
+            latestClaim.claimVersion == latestVerification.claimVersion &&
+            latestClaim.claimHash == latestVerification.claimHash
+        );
+    }
+    
+    // FullProof v1.1: 최신 Verification 이후 Proof 추가 여부 확인
+    function isProofHistoryUnchanged(
+        uint256 caseId,
+        uint256 stepId
+    ) public view caseExists(caseId) returns (bool) {
+        require(
+            stepId < cases[caseId].stepCount,
+            "Invalid step"
+        );
+
+        uint256 verificationCount =
+            verificationHistory[caseId][stepId].length;
+
+        // Verification 기록이 없으면 확인 불가능
+        if (verificationCount == 0) {
+            return false;
+        }
+
+        VerificationRecord storage latestVerification =
+            verificationHistory[caseId][stepId][verificationCount - 1];
+
+        uint256 currentProofCount =
+            agencyProofHistory[caseId][stepId].length;
+
+        return (
+            latestVerification.proofHistoryCount == currentProofCount
+        );
+    }
+    
+    // 최신 Verification에 대한 관리자 승인 여부 확인
+    function isLatestVerificationApproved(
+        uint256 caseId,
+        uint256 stepId
+    ) public view caseExists(caseId) returns (bool) {
+        require(
+            stepId < cases[caseId].stepCount,
+            "Invalid step"
+        );
+
+        uint256 verificationCount =
+            verificationHistory[caseId][stepId].length;
+
+        if (verificationCount == 0) {
+            return false;
+        }
+
+        VerificationRecord storage latestVerification =
+            verificationHistory[caseId][stepId][verificationCount - 1];
+
+        VerificationReviewRecord[] storage reviews =
+            verificationReviewHistory[caseId][stepId];
+
+        // 가장 최근 관리자 검토 조치를 기준으로 판단
+        if (reviews.length == 0) {
+            return false;
+        }
+
+        VerificationReviewRecord storage latestReview =
+            reviews[reviews.length - 1];
+
+        return (
+            latestReview.verificationIdHash ==
+                latestVerification.verificationIdHash &&
+            latestReview.verificationHash ==
+                latestVerification.verificationHash &&
+            latestReview.action == VerificationReviewAction.APPROVE
+        );
     }
 
     // FullProof v1.1: 등록된 Claim ID·버전·해시 일치 확인
@@ -658,7 +840,7 @@ contract ChainOfInvestigation is EIP712 {
             proofRefsHash != bytes32(0),
             "Invalid proof refs hash"
         );
-
+        
         require(
             policyHash != bytes32(0),
             "Invalid policy hash"
@@ -695,6 +877,7 @@ contract ChainOfInvestigation is EIP712 {
                 claimHash: claimHash,
                 proofRefsHash: proofRefsHash,
                 policyHash: policyHash,
+                proofHistoryCount: agencyProofHistory[caseId][stepId].length,
                 verificationHash: verificationHash,
                 verdict: verdict,
                 recordedAt: uint64(block.timestamp),
@@ -734,11 +917,161 @@ contract ChainOfInvestigation is EIP712 {
 
         return verificationHistory[caseId][stepId][index];
     }
+    
+    // FullProof v1.1: 사건·단계별 최신 Verification 조회
+    function getLatestVerification(
+        uint256 caseId,
+        uint256 stepId
+    ) external view returns (VerificationRecord memory) {
+        require(
+            stepId < cases[caseId].stepCount,
+            "Invalid step"
+        );
 
+        uint256 count = verificationHistory[caseId][stepId].length;
 
+        require(
+            count > 0,
+            "No verification record"
+        );
 
+        return verificationHistory[caseId][stepId][count - 1];
+    }
+    
+    // FullProof v1.1: Verification ID와 결과 해시의 등록 여부 확인
+    function isRegisteredVerification(
+        uint256 caseId,
+        uint256 stepId,
+        bytes32 verificationIdHash,
+        bytes32 verificationHash
+    ) public view returns (bool) {
+        VerificationRecord[] storage records =
+            verificationHistory[caseId][stepId];
 
+        for (uint256 i = 0; i < records.length; i++) {
+            if (
+                records[i].verificationIdHash == verificationIdHash &&
+                records[i].verificationHash == verificationHash
+            ) {
+                return true;
+            }
+        }
 
+        return false;
+    }
+    
+    // FullProof v1.1: Verification 관리자 확인 이력 기록
+    function recordVerificationReview(
+        uint256 caseId,
+        uint256 stepId,
+        bytes32 verificationIdHash,
+        bytes32 verificationHash,
+        VerificationReviewAction action
+    )
+        external
+        onlyOpen(caseId)
+        onlyAdmin
+    {
+        require(
+            action != VerificationReviewAction.NONE,
+            "Invalid review action"
+        );
+
+        require(
+            isRegisteredVerification(
+                caseId,
+                stepId,
+                verificationIdHash,
+                verificationHash
+            ),
+            "Verification reference mismatch"
+        );
+        
+        // 관리자 검토는 해당 단계의 최신 Verification만 허용
+        uint256 verificationCount =
+            verificationHistory[caseId][stepId].length;
+
+        require(
+            verificationCount > 0,
+            "No verification record"
+        );
+
+        VerificationRecord storage latestVerification =
+            verificationHistory[caseId][stepId][verificationCount - 1];
+
+        require(
+            latestVerification.verificationIdHash == verificationIdHash &&
+            latestVerification.verificationHash == verificationHash,
+            "Review must reference latest verification"
+        );
+        
+        // 최종 승인 시에는 최신 Claim과 Proof 기준의 검증이어야 함
+        if (action == VerificationReviewAction.APPROVE) {
+            require(
+                isLatestClaimVerified(caseId, stepId),
+                "Cannot approve: outdated Claim"
+            );
+
+            require(
+                isProofHistoryUnchanged(caseId, stepId),
+                "Cannot approve: Proof history changed"
+            );
+
+            require(
+                latestVerification.verdict == VerificationVerdict.SUPPORTED,
+                "Cannot approve: verification not supported"
+            );
+
+            require(
+                agencyProofHistory[caseId][stepId].length > 0,
+                "Cannot approve: no agency Proof"
+            );
+        }
+
+        uint64 reviewedAt = uint64(block.timestamp);
+
+        verificationReviewHistory[caseId][stepId].push(
+            VerificationReviewRecord({
+                verificationIdHash: verificationIdHash,
+                verificationHash: verificationHash,
+                action: action,
+                reviewer: msg.sender,
+                reviewedAt: reviewedAt
+            })
+        );
+
+        emit VerificationReviewAnchored(
+            caseId,
+            stepId,
+            verificationIdHash,
+            verificationHash,
+            action,
+            msg.sender,
+            reviewedAt
+        );
+    }
+    
+    // FullProof v1.1: 관리자 확인 이력 개수 조회
+    function getVerificationReviewHistoryLength(
+        uint256 caseId,
+        uint256 stepId
+    ) external view returns (uint256) {
+        return verificationReviewHistory[caseId][stepId].length;
+    }
+
+    // FullProof v1.1: 관리자 확인 이력 개별 조회
+    function getVerificationReviewRecord(
+        uint256 caseId,
+        uint256 stepId,
+        uint256 index
+    ) external view returns (VerificationReviewRecord memory) {
+        require(
+            index < verificationReviewHistory[caseId][stepId].length,
+            "Invalid review index"
+        );
+
+        return verificationReviewHistory[caseId][stepId][index];
+    }
 
     // -----------------------------
     // EIP-712 signature verification
@@ -756,6 +1089,7 @@ contract ChainOfInvestigation is EIP712 {
                 request.caseId,
                 request.stepId,
                 request.proofIdHash,
+                request.proofVersion,
                 request.proofHash,
                 request.occurredAt,
                 request.issuedAt,
@@ -960,15 +1294,23 @@ contract ChainOfInvestigation is EIP712 {
             "Invalid electronic signature"
         );
 
-        // 6. 동일 Proof 중복 등록 방지
+        
+        // 6. 동일 Proof ID와 버전의 중복 등록 방지
+        require(
+            request.proofVersion > 0,
+            "Invalid proof version"
+        );
+
         bytes32 proofKey = keccak256(
             abi.encode(
                 request.caseId,
                 request.stepId,
                 request.agency,
-                request.proofIdHash
+                request.proofIdHash,
+                request.proofVersion
             )
         );
+
 
         require(
             !registeredAgencyProofs[proofKey],
@@ -987,6 +1329,7 @@ contract ChainOfInvestigation is EIP712 {
         agencyProofHistory[request.caseId][request.stepId].push(
             AgencyProofRecord({
                 proofIdHash: request.proofIdHash,
+                proofVersion: request.proofVersion,
                 proofHash: request.proofHash,
                 agency: request.agency,
                 signer: recoveredSigner,
@@ -1002,6 +1345,7 @@ contract ChainOfInvestigation is EIP712 {
             request.caseId,
             request.stepId,
             request.proofIdHash,
+            request.proofVersion,
             request.proofHash,
             request.agency,
             recoveredSigner,
@@ -1033,38 +1377,236 @@ contract ChainOfInvestigation is EIP712 {
 
         return agencyProofHistory[caseId][stepId][index];
     }
+    
+    // 등록된 기관 Proof의 ID·버전·원문 해시 일치 여부 확인
+    function isRegisteredAgencyProof(
+        uint256 caseId,
+        uint256 stepId,
+        bytes32 proofIdHash,
+        uint256 proofVersion,
+        bytes32 proofHash
+    ) public view caseExists(caseId) returns (bool) {
+        require(
+            stepId < cases[caseId].stepCount,
+            "Invalid step"
+        );
 
+        AgencyProofRecord[] storage proofs =
+            agencyProofHistory[caseId][stepId];
+
+        for (uint256 i = 0; i < proofs.length; i++) {
+            if (
+                proofs[i].proofIdHash == proofIdHash &&
+                proofs[i].proofVersion == proofVersion &&
+                proofs[i].proofHash == proofHash
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+    
+    // 해당 기관 Proof ID의 최신 버전과 해시 확인
+    function isLatestAgencyProof(
+        uint256 caseId,
+        uint256 stepId,
+        address agency,
+        bytes32 proofIdHash,
+        uint256 proofVersion,
+        bytes32 proofHash
+    ) public view caseExists(caseId) returns (bool) {
+        require(
+            stepId < cases[caseId].stepCount,
+            "Invalid step"
+        );
+
+        AgencyProofRecord[] storage proofs =
+            agencyProofHistory[caseId][stepId];
+
+        bool found = false;
+        uint256 highestVersion = 0;
+        bytes32 highestVersionHash;
+
+        for (uint256 i = 0; i < proofs.length; i++) {
+            if (
+                proofs[i].agency == agency &&
+                proofs[i].proofIdHash == proofIdHash
+            ) {
+                if (!found || proofs[i].proofVersion > highestVersion) {
+                    found = true;
+                    highestVersion = proofs[i].proofVersion;
+                    highestVersionHash = proofs[i].proofHash;
+                }
+            }
+        }
+
+        return (
+            found &&
+            highestVersion == proofVersion &&
+            highestVersionHash == proofHash
+        );
+    }
 
 
     // -----------------------------
     // Case closing
     // -----------------------------
 
-    function closeCase(uint256 caseId, string memory reason)
-        external
-        onlyOpen(caseId)
-        onlyAdmin
-    {
-        require(bytes(reason).length > 0, "Close reason is empty");
-
+    
+    // FullProof v1.1: 필수 단계의 종결 조건 확인
+    function _checkCaseClosureConditions(
+        uint256 caseId
+    ) internal view {
         uint256 count = cases[caseId].stepCount;
 
         for (uint256 i = 0; i < count; i++) {
-            if (caseSteps[caseId][i].isRequired) {
-                require(
-                    caseSteps[caseId][i].status == VerificationStatus.VERIFIED,
-                    "Cannot close: required steps must be VERIFIED"
-                );
+            // 필수 수사 단계만 종결 조건 검사
+            if (!caseSteps[caseId][i].isRequired) {
+                continue;
             }
+
+            // 최신 Claim과 Verification의 참조 일치 여부
+            require(
+                isLatestClaimVerified(caseId, i),
+                "Closure blocked: outdated Claim verification"
+            );
+            
+            // 최신 Verification의 최종 판정 확인
+            uint256 verificationCount =
+                verificationHistory[caseId][i].length;
+
+            VerificationRecord storage latestVerification =
+                verificationHistory[caseId][i][verificationCount - 1];
+
+            require(
+                latestVerification.verdict == VerificationVerdict.SUPPORTED,
+                "Closure blocked: verification not supported"
+            );
+
+            // Verification 이후 Proof 추가 여부
+            require(
+                isProofHistoryUnchanged(caseId, i),
+                "Closure blocked: Proof history changed"
+            );
+            
+            // Verification에서 사용한 Proof 참조 해시가 비어 있으면 종결 차단
+            uint256 latestVerificationIndex =
+                verificationHistory[caseId][i].length - 1;
+
+            require(
+                verificationHistory[caseId][i][latestVerificationIndex]
+                    .proofRefsHash != bytes32(0),
+                "Closure blocked: missing Proof references"
+            );
+            
+            // 기관 Proof가 하나도 없으면 사건 종결 차단
+            require(
+                agencyProofHistory[caseId][i].length > 0,
+                "Closure blocked: no agency Proof"
+            );
+
+            // 최신 Verification에 대한 관리자 승인 여부
+            require(
+                isLatestVerificationApproved(caseId, i),
+                "Closure blocked: approval required"
+            );
+        }
+    }
+
+    
+function closeCase(uint256 caseId, string memory reason)
+    external
+    onlyOpen(caseId)
+    onlyAdmin
+{
+    require(bytes(reason).length > 0, "Close reason is empty");
+
+    uint256 count = cases[caseId].stepCount;
+    uint256 requiredCount = 0;
+
+    for (uint256 i = 0; i < count; i++) {
+        if (!caseSteps[caseId][i].isRequired) {
+            continue;
         }
 
-        cases[caseId].status = CaseStatus.CLOSED;
-        cases[caseId].closeReason = reason;
-        cases[caseId].closedAt = uint64(block.timestamp);
-        cases[caseId].closer = msg.sender;
+        requiredCount++;
 
-        emit CaseClosed(caseId, reason, msg.sender, block.timestamp);
+        // 1. AI Verification 기록이 존재해야 함
+        uint256 verificationCount =
+            verificationHistory[caseId][i].length;
+
+        require(
+            verificationCount > 0,
+            "Cannot close: no verification"
+        );
+
+        VerificationRecord storage latestVerification =
+            verificationHistory[caseId][i][verificationCount - 1];
+
+        // 2. 최신 AI 판정이 SUPPORTED여야 함
+        require(
+            latestVerification.verdict == VerificationVerdict.SUPPORTED,
+            "Cannot close: verification not supported"
+        );
+
+        // 3. 최신 Claim과 Proof 상태를 유지해야 함
+        require(
+            isLatestClaimVerified(caseId, i),
+            "Cannot close: outdated Claim"
+        );
+
+        require(
+            isProofHistoryUnchanged(caseId, i),
+            "Cannot close: Proof history changed"
+        );
+
+        require(
+            agencyProofHistory[caseId][i].length > 0,
+            "Cannot close: no agency Proof"
+        );
+
+        // 4. 관리자 검토 이력이 존재해야 함
+        uint256 reviewCount =
+            verificationReviewHistory[caseId][i].length;
+
+        require(
+            reviewCount > 0,
+            "Cannot close: no admin review"
+        );
+
+        VerificationReviewRecord storage latestReview =
+            verificationReviewHistory[caseId][i][reviewCount - 1];
+
+        // 5. 최신 검토가 APPROVE여야 함
+        require(
+            latestReview.action == VerificationReviewAction.APPROVE,
+            "Cannot close: not approved"
+        );
+
+        // 6. 승인이 최신 Verification에 대한 것이어야 함
+        require(
+            latestReview.verificationIdHash ==
+                latestVerification.verificationIdHash &&
+            latestReview.verificationHash ==
+                latestVerification.verificationHash,
+            "Cannot close: outdated approval"
+        );
     }
+
+    require(
+        requiredCount > 0,
+        "Cannot close: no required steps"
+    );
+
+    cases[caseId].status = CaseStatus.CLOSED;
+    cases[caseId].closeReason = reason;
+    cases[caseId].closedAt = uint64(block.timestamp);
+    cases[caseId].closer = msg.sender;
+
+    emit CaseClosed(caseId, reason, msg.sender, block.timestamp);
+}
+
 
     // -----------------------------
     // View functions

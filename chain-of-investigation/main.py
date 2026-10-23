@@ -3,6 +3,9 @@
 Local demonstration only. Proofs must be signed externally by registered agency
 signers; this server never fabricates an agency signature.
 """
+
+from verification_v11 import POLICY, PROOF_FIELDS, verify_v11
+import rfc8785
 import hashlib
 import json
 import os
@@ -77,6 +80,28 @@ def sender():
         raise HTTPException(503, "No unlocked local transaction account available")
     return accounts[0]
 
+
+def verification_sender():
+    """v1.1 Verification 전용 시스템 기록자 계정"""
+    require_chain()
+
+    accounts = w3.eth.accounts
+    if len(accounts) < 2:
+        raise HTTPException(
+            503,
+            "Verification recorder account unavailable"
+        )
+
+    recorder = accounts[1]
+
+    if not contract.functions.isVerificationRecorder(recorder).call():
+        raise HTTPException(
+            403,
+            "Account is not an authorized Verification recorder"
+        )
+
+    return recorder
+
 def confirmed(tx):
     receipt = w3.eth.wait_for_transaction_receipt(tx, timeout=120)
     if receipt.status != 1:
@@ -88,6 +113,440 @@ def case_uint(case_id: str):
 
 def canonical_hash(obj):
     return Web3.keccak(text=json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str))
+
+def v11_sha256(obj):
+    """FullProof v1.1: RFC8785/JCS + SHA-256"""
+    canonical_bytes = rfc8785.dumps(obj)
+    return "0x" + hashlib.sha256(canonical_bytes).hexdigest()
+
+
+V11_PROOF_FIELDS = (
+    "schema_version",
+    "proof_id",
+    "proof_version",
+    "case_id",
+    "step_id",
+    "issuer_agency_id",
+    "agency_address",
+    "proof_type",
+    "call_id",
+    "target_id",
+    "action_type",
+    "proof_occurred_at",
+    "proof_issued_at",
+    "result",
+    "source_sha256",
+)
+
+
+def v11_proof_hash(proof):
+    """AI v1.1에서 정의한 기관 Proof 원본 해시 계산"""
+    try:
+        content = {
+            key: proof[key]
+            for key in V11_PROOF_FIELDS
+        }
+    except (KeyError, TypeError):
+        raise HTTPException(
+            400,
+            "Invalid v1.1 Proof content"
+        )
+
+    return v11_sha256(content)
+
+
+def validate_v11_onchain_proof(proof):
+    """v1.1 기관 Proof 원본과 최신 온체인 기록 대조"""
+    require_chain()
+
+    try:
+        case_id = proof["case_id"]
+        step_id = proof["step_id"]
+        proof_id = proof["proof_id"]
+        proof_version = proof["proof_version"]
+        agency = proof["agency_address"]
+
+        if not isinstance(case_id, str) or not case_id:
+            raise ValueError("Invalid case ID")
+
+        if type(step_id) is not int or step_id < 0:
+            raise ValueError("Invalid step ID")
+
+        if type(proof_version) is not int or proof_version < 1:
+            raise ValueError("Invalid Proof version")
+
+        if not isinstance(proof_id, str) or not proof_id:
+            raise ValueError("Invalid Proof ID")
+
+        if not Web3.is_address(agency):
+            raise ValueError("Invalid agency address")
+
+        proof_id_hash = "0x" + hashlib.sha256(
+            proof_id.encode("utf-8")
+        ).hexdigest()
+
+        proof_hash = v11_proof_hash(proof)
+
+        is_latest = contract.functions.isLatestAgencyProof(
+            case_uint(case_id),
+            step_id,
+            Web3.to_checksum_address(agency),
+            proof_id_hash,
+            proof_version,
+            proof_hash
+        ).call()
+
+        if not is_latest:
+            raise HTTPException(
+                400,
+                "Proof is not the latest registered agency Proof"
+            )
+
+        return {
+            "proof_id": proof_id,
+            "proof_version": proof_version,
+            "proof_hash": proof_hash,
+            "proof_id_hash": proof_id_hash,
+            "agency": Web3.to_checksum_address(agency),
+            "status": "VALID"
+        }
+
+    except HTTPException:
+        raise
+
+    except (KeyError, TypeError, ValueError) as e:
+        raise HTTPException(
+            400,
+            f"Invalid v1.1 agency Proof: {e}"
+        )
+
+
+def validate_v11_onchain_claim(claim):
+    """v1.1 Claim 원문과 온체인 등록 기록 대조"""
+    require_chain()
+
+    try:
+        case_id = claim["case_id"]
+        step_id = claim["step_id"]
+        claim_id = claim["claim_id"]
+        claim_version = claim["claim_version"]
+        claim_text = claim["claim_text"]
+
+        if not isinstance(case_id, str) or not case_id:
+            raise ValueError("Invalid case ID")
+        if type(step_id) is not int or step_id < 0:
+            raise ValueError("Invalid step ID")
+        if not isinstance(claim_id, str) or not claim_id:
+            raise ValueError("Invalid Claim ID")
+        if type(claim_version) is not int or claim_version < 1:
+            raise ValueError("Invalid Claim version")
+        if not isinstance(claim_text, str) or not claim_text:
+            raise ValueError("Invalid Claim text")
+
+        claim_id_hash = "0x" + hashlib.sha256(
+            claim_id.encode("utf-8")
+        ).hexdigest()
+
+        claim_hash = "0x" + hashlib.sha256(
+            claim_text.encode("utf-8")
+        ).hexdigest()
+
+        registered = contract.functions.isRegisteredClaim(
+            case_uint(case_id),
+            step_id,
+            claim_id_hash,
+            claim_version,
+            claim_hash
+        ).call()
+
+        if not registered:
+            raise HTTPException(
+                400,
+                "Claim does not match on-chain record"
+            )
+        
+        # v1.1: 과거 Claim이 아닌 최신 Claim만 검증에 사용
+        latest_claim = contract.functions.getLatestClaim(
+            case_uint(case_id),
+            step_id
+        ).call()
+
+        if (
+            Web3.to_hex(latest_claim[0]) != claim_id_hash
+            or latest_claim[1] != claim_version
+            or Web3.to_hex(latest_claim[2]) != claim_hash
+        ):
+            raise HTTPException(
+                409,
+                "Claim is outdated: re-verification required"
+            )
+
+        return {
+            "claim_id": claim_id,
+            "claim_version": claim_version,
+            "claim_hash": claim_hash,
+            "status": "VALID"
+        }
+
+    except HTTPException:
+        raise
+
+    except (KeyError, TypeError, ValueError) as e:
+        raise HTTPException(
+            400,
+            f"Invalid v1.1 Claim: {e}"
+        )
+
+def anchor_v11_verification(result):
+    """검증 완료된 v1.1 Verification의 온체인 기록 단계"""
+
+    if result.get("schema_version") != "1.1":
+        raise HTTPException(400, "Invalid schema version")
+
+    if (
+        result.get("processing_status") != "COMPLETED"
+        or result.get("verdict") not in (
+            "SUPPORTED",
+            "CONTRADICTED",
+            "INSUFFICIENT"
+        )
+    ):
+        raise HTTPException(
+            400,
+            "Verification is not finalized"
+        )
+
+    # 공식 JCS/SHA-256 해시 확인
+    verification_hash = validate_v11_verification_hashes(result)
+    
+    # 온체인 기록 직전 최신 Claim 참조 확인
+    chain_case_id = case_uint(result["case_id"])
+    step_id = result["step_id"]
+    claim_ref = result["claim_ref"]
+
+    if not contract.functions.isLatestClaimVerified(
+        chain_case_id, step_id
+    ).call():
+        # 이 함수는 이미 기록된 Verification 기준으로 판단하므로
+        # 신규 Verification 등록 전 검사에는 사용하지 않는다.
+        pass
+
+    latest_claim = contract.functions.getLatestClaim(
+        chain_case_id, step_id
+    ).call()
+
+    expected_claim_id_hash = "0x" + hashlib.sha256(
+        claim_ref["claim_id"].encode("utf-8")
+    ).hexdigest()
+
+    if (
+        Web3.to_hex(latest_claim[0]) != expected_claim_id_hash
+        or latest_claim[1] != claim_ref["claim_version"]
+        or Web3.to_hex(latest_claim[2]) != claim_ref["claim_hash"]
+    ):
+        raise HTTPException(
+            409,
+            "Claim changed before Verification anchoring"
+        )
+
+    # Verification이 참조한 모든 Proof의 최신성 재확인
+    # proof_refs에는 agency 주소가 없으므로, 기관과 연결된
+    # 검증 완료 원본 데이터가 필요한 검사는 호출 전에 수행해야 한다.
+    
+    # v1.1: Verification이 참조한 Proof가 실제 온체인에
+    # 존재하며 해당 기관의 최신 버전인지 확인한다.
+    proof_refs = result["proof_refs"]
+
+    if (
+        result["verdict"] in ("SUPPORTED", "CONTRADICTED")
+        and not proof_refs
+    ):
+        raise HTTPException(
+            400,
+            "Final verdict requires agency Proof"
+        )
+
+    proof_count = contract.functions.getAgencyProofHistoryLength(
+        chain_case_id, step_id
+    ).call()
+
+    for proof_ref in proof_refs:
+        proof_id_hash = "0x" + hashlib.sha256(
+            proof_ref["proof_id"].encode("utf-8")
+        ).hexdigest()
+
+        matched = False
+
+        for index in range(proof_count):
+            record = contract.functions.getAgencyProofRecord(
+                chain_case_id, step_id, index
+            ).call()
+
+            if (
+                Web3.to_hex(record[0]) == proof_id_hash
+                and record[1] == proof_ref["proof_version"]
+                and Web3.to_hex(record[2]) == proof_ref["proof_hash"]
+            ):
+                agency = record[3]
+
+                matched = contract.functions.isLatestAgencyProof(
+                    chain_case_id,
+                    step_id,
+                    agency,
+                    proof_id_hash,
+                    proof_ref["proof_version"],
+                    proof_ref["proof_hash"]
+                ).call()
+
+                if matched:
+                    break
+
+        if not matched:
+            raise HTTPException(
+                409,
+                "Verification references an invalid or outdated Proof"
+            )
+
+    claim_ref = result["claim_ref"]
+
+    verdict_map = {
+        "SUPPORTED": 1,
+        "CONTRADICTED": 2,
+        "INSUFFICIENT": 3
+    }
+
+    verification_id_hash = (
+        "0x" + hashlib.sha256(
+            result["verification_id"].encode("utf-8")
+        ).hexdigest()
+    )
+
+    tx_hash = confirmed(
+        contract.functions.anchorVerification(
+            case_uint(result["case_id"]),
+            result["step_id"],
+            verification_id_hash,
+            "0x" + hashlib.sha256(
+                claim_ref["claim_id"].encode("utf-8")
+            ).hexdigest(),
+            claim_ref["claim_version"],
+            claim_ref["claim_hash"],
+            result["proof_refs_hash"],
+            result["policy_hash"],
+            verification_hash,
+            verdict_map[result["verdict"]]
+        ).transact({
+            "from": verification_sender()
+        })
+    )
+
+    return {
+        "verification_id": result["verification_id"],
+        "verification_hash": verification_hash,
+        "verification_tx_hash": tx_hash
+    }
+
+
+
+def process_v11_verification(validated_inputs):
+    """온체인 입력 검증 → AI 판정 → Verification 기록"""
+
+    from verification_v11 import verify_v11
+
+    claim = validated_inputs["claim"]
+    proofs = validated_inputs["proofs"]
+
+    # 1. Claim 원문과 온체인 기록 대조
+    validate_v11_onchain_claim(claim)
+
+    # 2. Proof 원문과 최신 온체인 기록 대조
+    for proof in proofs:
+        validate_v11_onchain_proof(proof)
+
+
+    # 3. AI Rule Engine으로 최종 판정
+    result = verify_v11(
+        **validated_inputs,
+        canonicalize=rfc8785.dumps
+    )
+
+    # 4. 공식 해시 검증
+    validate_v11_verification_hashes(result)
+
+    # 5. 확정되지 않은 결과는 온체인에 기록하지 않음
+    if (
+        result["processing_status"] != "COMPLETED"
+        or result["verdict"] not in (
+            "SUPPORTED",
+            "CONTRADICTED",
+            "INSUFFICIENT"
+        )
+    ):
+        return result
+
+    # 6. 검증된 Verification 온체인 기록
+    anchor_result = anchor_v11_verification(result)
+
+    result["verification_tx_hash"] = (
+        anchor_result["verification_tx_hash"]
+    )
+
+    return result
+
+
+def validate_v11_verification_hashes(result):
+    """v1.1 Proof 참조 해시와 Verification 해시를 검증한다."""
+
+    proof_refs = result["proof_refs"]
+
+    expected_proof_refs_hash = v11_sha256({
+        "schema_version": "1.1",
+        "proof_refs": proof_refs
+    })
+
+    if result["proof_refs_hash"] != expected_proof_refs_hash:
+        raise HTTPException(
+            400,
+            "Verification proof_refs_hash mismatch"
+        )
+
+    fields = (
+        "schema_version",
+        "verification_id",
+        "case_id",
+        "step_id",
+        "claim_ref",
+        "proof_refs",
+        "processing_status",
+        "verdict",
+        "conflicts",
+        "missing_information",
+        "reason_text",
+        "evidence_refs",
+        "review_required",
+        "decision_policy_version",
+        "policy_hash",
+        "proof_refs_hash",
+    )
+
+    verification_content = {
+        key: result[key] for key in fields
+    }
+
+    expected_verification_hash = v11_sha256(
+        verification_content
+    )
+
+    if result.get("verification_hash") not in (
+        None,
+        expected_verification_hash
+    ):
+        raise HTTPException(
+            400,
+            "Verification hash mismatch"
+        )
+
+    return expected_verification_hash
 
 def parse_timestamp(value):
     if isinstance(value, int):
@@ -147,6 +606,7 @@ class ProofAttestationSchema(BaseModel):
     step_id: int = Field(ge=0)
 
     proof_id: str = Field(min_length=1)
+    proof_version: int = Field(ge=1)
     proof_hash: str
 
     occurred_at: int = Field(gt=0)
@@ -340,6 +800,15 @@ def create_claim(case_id: str, data: ClaimCreateSchema):
     ).hexdigest()
 
     claim_hash = hash_claim_text(data.claim_text)
+    
+    # Claim 원본 작성자 식별자와 입력 시각
+    # 현재 API에 작성자 입력 필드가 없으므로 인증된 등록자 주소를 임시 식별자로 사용
+    author_id_hash = "0x" + hashlib.sha256(
+        sender().lower().encode("utf-8")
+    ).hexdigest()
+
+    # 서버가 원본을 처음 접수한 시각으로 기록
+    input_at = int(time.time())
 
     # 4. 블록체인에 Claim 기록
     try:
@@ -349,7 +818,9 @@ def create_claim(case_id: str, data: ClaimCreateSchema):
                 data.step_id,
                 claim_id_hash,
                 data.claim_version,
-                claim_hash
+                claim_hash,
+                author_id_hash,
+                input_at
             ).transact({"from": sender()})
         )
 
@@ -405,8 +876,10 @@ def get_claim_history(case_id: str, step_id: int):
                 "claim_id_hash": Web3.to_hex(record[0]),
                 "claim_version": record[1],
                 "claim_hash": Web3.to_hex(record[2]),
-                "recorded_at": record[3],
-                "recorder": record[4]
+                "author_id_hash": Web3.to_hex(record[3]),
+                "input_at": record[4],
+                "recorded_at": record[5],
+                "recorder": record[6]
             })
 
     except Exception as e:
@@ -478,12 +951,13 @@ def anchor_agency_proof(data: ProofAttestationSchema):
         case_uint(data.case_id),
         data.step_id,
         proof_id_hash,
+        data.proof_version,
         data.proof_hash,
         data.occurred_at,
         data.issued_at,
         agency_address,
         data.nonce,
-        data.deadline
+        data.deadline,
     )
 
     # 5. 기관 서명 검증 및 온체인 기록
@@ -546,13 +1020,14 @@ def get_agency_proof_history(case_id: str, step_id: int):
 
             records.append({
                 "proof_id_hash": Web3.to_hex(record[0]),
-                "proof_hash": Web3.to_hex(record[1]),
-                "agency": record[2],
-                "signer": record[3],
-                "occurred_at": record[4],
-                "issued_at": record[5],
-                "recorded_at": record[6],
-                "signature_digest": Web3.to_hex(record[7])
+                "proof_version": record[1],
+                "proof_hash": Web3.to_hex(record[2]),
+                "agency": record[3],
+                "signer": record[4],
+                "occurred_at": record[5],
+                "issued_at": record[6],
+                "recorded_at": record[7],
+                "signature_digest": Web3.to_hex(record[8])
             })
 
     except Exception as e:
