@@ -1,0 +1,36 @@
+{
+  "success": true,
+  "data": {
+    "schema_version": "1.1",
+    "verification_id": "VERIFY-CONTRACT-SUPPORTED",
+    "case_id": "CASE-001",
+    "step_id": 0,
+    "claim_ref": {
+      "claim_id": "CLAIM-CONTRACT",
+      "claim_version": 1,
+      "claim_hash": "0xdde52ee412270121cc9a93a478a8c412f2666a5a31320f70b4441d2ce8c7c059"
+    },
+    "proof_refs": [
+      {
+        "proof_id": "PROOF-001",
+        "proof_version": 1,
+        "proof_hash": "0xd9491d4f357151184e95ba4f4044686cb93b88daaa62cd6d443614b236ca793b"
+      }
+    ],
+    "processing_status": "COMPLETED",
+    "verdict": "SUPPORTED",
+    "conflicts": [],
+    "missing_information": [],
+    "reason_text": "기관 Proof가 필수 비교 조건과 주장을 뒷받침합니다.",
+    "evidence_refs": [
+      "PROOF-001"
+    ],
+    "review_required": false,
+    "decision_policy_version": "policy-v1",
+    "policy_hash": "0x7f1088c36dc3ce97d3a67991e76b7fc3a3b0e48b1ef1eaaf5e6477af88268976",
+    "proof_refs_hash": "0x4acbda97d56bad11a8a0a369358b08a0f74eed10b66fd8180cb2a381a6361c7d",
+    "verification_tx_hash": null,
+    "verification_hash": "0xffac337892fcc2a60e574835507f93308ed52bd2d44ddb66ae0b70b64658777f"
+  },
+  "error": null
+}

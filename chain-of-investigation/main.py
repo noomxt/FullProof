@@ -702,20 +702,26 @@ def process_v11_verification(validated_inputs):
                 "Duplicate Proof version"
             )
 
-        verified_proofs[key] = {
-             "status": "VALID",
-            # 독립적인 매핑 근거 충분성 검증이
-            # 구현되기 전에는 True로 설정하지 않는다.
-            "mapping_evidence_sufficient": False
-        }
+        from mapping_evidence import assess_mapping_link
+        allowed_reviewers = {a.strip().lower() for a in os.getenv('V11_MAPPING_REVIEWERS', '').split(',') if a.strip()}
+        # Read server-owned history. Caller flags/records are never authoritative.
+        history = V11_MAPPING_HISTORY.get((claim['case_id'], claim['claim_id']), [])
+        draft = PROOF_DRAFTS[(claim['case_id'], proof['proof_id'], proof['proof_version'])]
+        matching = [m for m in history if m.get('proof_id') == proof['proof_id']
+                    and m.get('proof_version') == proof['proof_version']
+                    and m.get('claim_version') == claim['claim_version']
+                    and m.get('mapping_status') == 'CONFIRMED']
+        linked = len(matching) == 1 and assess_mapping_link(
+            claim, proof, matching[0], draft, allowed_reviewers,
+            build_v11_mapping_confirmation_message)
+        verified_proofs[key] = {"status": "VALID", "mapping_evidence_sufficient": linked}
 
-    # 2. 매핑 근거는 현재 백엔드에서 독립 검증되지 않음
-    # 외부 입력의 mapping_evidence_sufficient=True를 신뢰하지 않는다.
+    # 2. Read authoritative mapping history, without caller trust flags.
     safe_mappings = []
 
-    for mapping in validated_inputs.get("mappings", []):
+    for mapping in V11_MAPPING_HISTORY.get((claim['case_id'], claim['claim_id']), []):
         safe_mapping = dict(mapping)
-        safe_mapping["mapping_evidence_sufficient"] = False
+        safe_mapping.pop('mapping_evidence_sufficient', None)
         safe_mappings.append(safe_mapping)
 
     # 3. 백엔드 검증 결과만 AI에 전달
@@ -1092,8 +1098,8 @@ def create_claim(case_id: str, data: ClaimCreateSchema):
             f"On-chain anchorClaim failed: {e}"
         )
 
-    # 5. 등록 결과 반환
-    return {
+    # Preserve immutable original bytes/version for server-side AI extraction.
+    record = {
         "schema_version": "1.1",
         "case_id": case_id,
         "step_id": data.step_id,
@@ -1102,8 +1108,16 @@ def create_claim(case_id: str, data: ClaimCreateSchema):
         "claim_text": data.claim_text,
         "claim_hash": claim_hash,
         "claim_tx_hash": tx_hash,
-        "chain_status": "CONFIRMED"
+        "chain_status": "CONFIRMED",
+        "claim_created_at": datetime.fromtimestamp(input_at, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        "officer_id": sender(),
+        "claimed_occurred_at": None,
+        "structured_claim": None
     }
+    claim_records = case.setdefault('v11_claims', [])
+    claim_records.append(record)
+    save_case(case)
+    return record
 
 @app.get("/api/v1/cases/{case_id}/steps/{step_id}/claims")
 def get_claim_history(case_id: str, step_id: int):
@@ -2075,6 +2089,40 @@ def v11_success(data):
     }
 
 
+def stored_v11_claim(case_id, claim_id, claim_version):
+    case = cases_db.get(case_id)
+    if case is None:
+        raise HTTPException(404, 'Case not found')
+    if case.get('is_closed'):
+        raise HTTPException(409, 'Case already closed')
+    records = [c for c in case.get('v11_claims', []) if c['claim_id'] == claim_id
+               and c['claim_version'] == claim_version]
+    if len(records) != 1:
+        raise HTTPException(404, 'Stored Claim version not found; register its original first')
+    return records[0]
+
+
+class V11ExtractionRequest(BaseModel):
+    case_id: str
+    claim_version: int = Field(ge=1)
+
+
+@app.post('/api/v1/claims/{claim_id}/extract')
+def extract_stored_v11_claim(claim_id: str, data: V11ExtractionRequest):
+    from copy import deepcopy
+    from verification_v11 import extract_v11
+    claim = stored_v11_claim(data.case_id, claim_id, data.claim_version)
+    validate_v11_onchain_claim(claim)
+    # An explicit extraction attempt is cached under this immutable version.
+    # Retry failed extraction only; clients cannot replace a completed result.
+    if not claim.get('structured_claim') or claim['structured_claim']['extraction_status'] == 'FAILED':
+        result = extract_v11(deepcopy(claim))
+        validate_v11_onchain_claim(claim)
+        claim['structured_claim'] = result
+        save_case(cases_db[data.case_id])
+    return v11_success(deepcopy(claim['structured_claim']))
+
+
 # ------------------------------------------------------------
 # A. Claim-Proof mapping
 # ------------------------------------------------------------
@@ -2434,16 +2482,27 @@ class V11VerificationRequest(BaseModel):
 def create_v11_verification(
     data: V11VerificationRequest
 ):
-    claim = data.claim
+    from copy import deepcopy
+    supplied_claim = data.claim
 
     try:
-        case_id = claim["case_id"]
-        claim_id = claim["claim_id"]
-        step_id = claim["step_id"]
+        case_id = supplied_claim["case_id"]
+        claim_id = supplied_claim["claim_id"]
+        supplied_version = supplied_claim["claim_version"]
     except (KeyError, TypeError):
         raise HTTPException(
             422, "Missing Claim reference"
         )
+
+    if type(supplied_version) is not int or supplied_version < 1:
+        raise HTTPException(422, 'Invalid Claim version')
+    claim = deepcopy(stored_v11_claim(case_id, claim_id, supplied_version))
+    step_id = claim['step_id']
+    for field in ('step_id', 'claim_text', 'claim_hash', 'structured_claim'):
+        if field in supplied_claim and supplied_claim[field] != claim.get(field):
+            raise HTTPException(409, 'Request differs from stored Claim: ' + field)
+    if not claim.get('structured_claim'):
+        raise HTTPException(409, 'Extract stored Claim before verification')
 
     case = cases_db.get(case_id)
 
@@ -2467,9 +2526,8 @@ def create_v11_verification(
                 422, "Proof case or step mismatch"
             )
 
-    # Mapping records are NOT automatically trusted.
-    # The backend has not yet authenticated a human
-    # confirmer or independently assessed link evidence.
+    # Mapping history is server-owned. Its signatures and explicit linkage
+    # are re-evaluated by process_v11_verification, never trusted from HTTP.
     history = V11_MAPPING_HISTORY.get(
         (case_id, claim_id), []
     )
@@ -2483,12 +2541,22 @@ def create_v11_verification(
         ] = False
         safe_mappings.append(safe_mapping)
 
+    server_proofs = []
+    for supplied_proof in data.proofs:
+        draft = PROOF_DRAFTS.get((case_id, supplied_proof.get('proof_id'), supplied_proof.get('proof_version')))
+        if draft is None or draft['status'] != 'ANCHORED':
+            raise HTTPException(409, 'Anchored Proof Draft is unavailable')
+        if any(supplied_proof.get(k, draft['proof_content'][k]) != draft['proof_content'][k] for k in V11_PROOF_FIELDS):
+            raise HTTPException(409, 'Proof differs from stored Draft')
+        server_proofs.append({**deepcopy(draft['proof_content']), 'proof_hash': draft['proof_hash']})
+
     validated_inputs = {
         "claim": claim,
-        "proofs": data.proofs,
+        "proofs": server_proofs,
         "mappings": safe_mappings,
         # Never take this from the request.
         "proof_validation": {},
+        "registered_policy_hash": v11_sha256(POLICY),
     }
 
     # The existing function validates Claim/Proof on-chain

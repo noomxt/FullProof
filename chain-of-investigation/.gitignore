@@ -43,3 +43,7 @@ fullproof.db-wal
 fullproof.db-shm
 
 checkpoint-backup.local.json
+
+# Isolated integration node output includes public development keys.
+node.local.log
+test-tmp/

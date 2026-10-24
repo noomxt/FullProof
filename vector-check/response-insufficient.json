@@ -1,0 +1,30 @@
+{
+  "success": true,
+  "data": {
+    "schema_version": "1.1",
+    "verification_id": "VERIFY-CONTRACT-INSUFFICIENT",
+    "case_id": "CASE-001",
+    "step_id": 0,
+    "claim_ref": {
+      "claim_id": "CLAIM-CONTRACT",
+      "claim_version": 1,
+      "claim_hash": "0xdde52ee412270121cc9a93a478a8c412f2666a5a31320f70b4441d2ce8c7c059"
+    },
+    "proof_refs": [],
+    "processing_status": "COMPLETED",
+    "verdict": "INSUFFICIENT",
+    "conflicts": [],
+    "missing_information": [
+      "PROOF_MISSING"
+    ],
+    "reason_text": "필수 정보 또는 유효한 연결 근거가 부족합니다.",
+    "evidence_refs": [],
+    "review_required": true,
+    "decision_policy_version": "policy-v1",
+    "policy_hash": "0x7f1088c36dc3ce97d3a67991e76b7fc3a3b0e48b1ef1eaaf5e6477af88268976",
+    "proof_refs_hash": "0x5ffbb1e7a6f371aff91971df528a7cc7cd1503e6460e51e1d863a3d9958cbb2f",
+    "verification_tx_hash": null,
+    "verification_hash": "0x8c6da54aa241bbee74626bb940134622d1275865134989782ad6cd69ae372b0a"
+  },
+  "error": null
+}
