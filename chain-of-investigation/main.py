@@ -9,6 +9,7 @@ from verification_v11 import POLICY, PROOF_FIELDS, verify_v11
 import os
 import secrets
 
+from eth_keys.exceptions import BadSignature
 from eth_account import Account
 from eth_account.messages import encode_defunct
 
@@ -2519,23 +2520,49 @@ class V11ReviewRequest(BaseModel):
     reason_text: str = ""
 
 
+class V11SignedReviewRequest(V11ReviewRequest):
+    signer_address: str
+    signature: str
+    nonce: str = Field(min_length=16)
+    deadline: int = Field(gt=0)
+
+
+def build_v11_admin_review_message(
+    verification_id,
+    verification_hash,
+    data
+):
+    payload = {
+        "purpose": "FullProof v1.1 Administrator Review",
+        "chain_id": w3.eth.chain_id,
+        "contract_address": contract.address,
+        "verification_id": verification_id,
+        "verification_hash": verification_hash,
+        "review_status": data.review_status,
+        "reason_code": data.reason_code,
+        "reason_text": data.reason_text,
+        "signer_address": data.signer_address,
+        "nonce": data.nonce,
+        "deadline": data.deadline
+    }
+
+    return rfc8785.dumps(payload).decode("utf-8")
+
+
+V11_USED_ADMIN_REVIEW_NONCES = set()
+
+
+
 @app.post(
     "/api/v1/verifications/{verification_id}/reviews"
 )
 
 def create_v11_review(
     verification_id: str,
-    data: V11ReviewRequest
+    data: V11SignedReviewRequest
 ):
     from uuid import uuid4
     from datetime import datetime, timezone
-
-
-    # v1.1: 요청자 인증 연동 전 관리자 승인 차단
-    raise HTTPException(
-        status_code=503,
-        detail="Administrator authentication is not configured"
-    )
 
     require_chain()
 
@@ -2585,16 +2612,64 @@ def create_v11_review(
         ).hexdigest()
     )
 
-    # 로컬 Hardhat MVP 관리자 계정
-    accounts = w3.eth.accounts
 
-    if not accounts:
+    # 1. 서명 유효기간 검사
+    current_block_time = w3.eth.get_block(
+        "latest"
+    )["timestamp"]
+
+    if data.deadline <= current_block_time:
         raise HTTPException(
-            503,
-            "No available blockchain accounts"
+            403, "Administrator signature expired"
         )
 
-    admin = accounts[0]
+    # 2. 서명 재사용 방지
+    nonce_key = (
+        data.signer_address.lower(),
+        data.nonce
+    )
+
+    if nonce_key in V11_USED_ADMIN_REVIEW_NONCES:
+        raise HTTPException(
+            409, "Administrator review nonce already used"
+        )
+
+    # 3. Verification과 검토 내용을 묶은
+    #    서명 메시지 생성
+    message = build_v11_admin_review_message(
+        verification_id,
+        verification_hash,
+        data
+    )
+
+
+    try:
+        recovered = Account.recover_message(
+            encode_defunct(text=message),
+            signature=data.signature
+        )
+    except (ValueError, TypeError, BadSignature):
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid administrator signature"
+        )
+
+    # 4. 요청한 주소와 실제 서명자 비교
+    if recovered.lower() != data.signer_address.lower():
+        raise HTTPException(
+            403, "Administrator signature mismatch"
+        )
+
+    # 5. 컨트랙트에 등록된 관리자와 비교
+    onchain_admin = contract.functions.admin().call()
+
+    if recovered.lower() != onchain_admin.lower():
+        raise HTTPException(
+            403, "Signer is not contract administrator"
+        )
+
+    admin = recovered
+
 
     # 관리자 권한은 Solidity onlyAdmin에서 강제한다.
     # 트랜잭션 제출 전에 사전 검증도 수행한다.
@@ -2679,5 +2754,6 @@ def create_v11_review(
 
     review["review_hash"] = v11_sha256(review)
     review["review_tx_hash"] = tx.hex()
+    V11_USED_ADMIN_REVIEW_NONCES.add(nonce_key)
 
     return v11_success(review)
