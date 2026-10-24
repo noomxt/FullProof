@@ -1,0 +1,20 @@
+{
+  "chain_id": 31337,
+  "contract": "0x4C4a2f8c81640e47606d3fd77B353E87Ba015584",
+  "live_ai": true,
+  "scenarios": [],
+  "extractions": [
+    {
+      "case": "AI-INTEGRATION-ffc26cbc0d66",
+      "status": "FAILED",
+      "error_code": "AI_TIMEOUT",
+      "model": "gemini-3.8-flash"
+    }
+  ],
+  "executed_tests": [
+    "test_ai_backend_integration.BackendIntegrationTests.test_admin_supported_approval_and_normal_closure"
+  ],
+  "failed_tests": [
+    "test_ai_backend_integration.BackendIntegrationTests.test_admin_supported_approval_and_normal_closure"
+  ]
+}

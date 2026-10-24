@@ -56,7 +56,8 @@ class BackendIntegrationTests(unittest.TestCase):
         gc.collect()
         cls.temp.cleanup()
         report = Path(__file__).parent / 'acceptance' / (
-            'backend-chain-live.json' if os.getenv('FULLPROOF_LIVE_AI') == '1' else 'backend-chain-integration.json')
+            os.getenv('FULLPROOF_TEST_REPORT') or (
+                'backend-chain-live.json' if os.getenv('FULLPROOF_LIVE_AI') == '1' else 'backend-chain-integration.json'))
         report.parent.mkdir(exist_ok=True)
         report.write_text(json.dumps(dict(chain_id=cls.w3.eth.chain_id, contract=cls.contract.address,
             live_ai=os.getenv('FULLPROOF_LIVE_AI') == '1', scenarios=cls.results,
@@ -208,6 +209,84 @@ class BackendIntegrationTests(unittest.TestCase):
             claim_version=2, step_id=0, claim_text=claim['claim_text']+' 수정'))
         self.post('/api/v1/verifications', dict(claim={k:claim[k] for k in
             ('case_id','claim_id','claim_version')}, proofs=proofs), 409)
+
+    def sign_local(self, signer, message):
+        signed = self.w3.provider.make_request('eth_sign', [signer, self.w3.to_hex(text=message)])
+        self.assertNotIn('error', signed)
+        return signed['result']
+
+    def signed_review(self, verification, status='ACCEPTED', signer=None):
+        signer = signer or self.admin
+        body = dict(review_status=status, reason_code=None, reason_text='통합 검증 확인',
+                    signer_address=signer, signature='0x', nonce=uuid4().hex,
+                    deadline=self.w3.eth.get_block('latest')['timestamp']+3600)
+        message = self.api.build_v11_admin_review_message(verification['verification_id'],
+            verification['verification_hash'], self.api.V11SignedReviewRequest(**body))
+        body['signature'] = self.sign_local(signer, message)
+        return body
+
+    def signed_close(self, signer=None):
+        signer = signer or self.admin
+        body = dict(reason='필수 단계의 최신 판정과 관리자 승인 확인', signer_address=signer,
+                    signature='0x', nonce=uuid4().hex,
+                    deadline=self.w3.eth.get_block('latest')['timestamp']+3600)
+        message = self.api.build_v11_close_message(self.case_id, self.api.V11SignedCloseCaseSchema(**body))
+        body['signature'] = self.sign_local(signer, message)
+        return body
+
+    def test_admin_supported_approval_and_normal_closure(self):
+        verification = self.verify(*self.seed(), 'SUPPORTED')
+        # Supported alone must not close a case before administrator review.
+        self.post(f'/api/v1/cases/{self.case_id}/close', self.signed_close(), 409)
+        review_body = self.signed_review(verification)
+        review = self.post(f"/api/v1/verifications/{verification['verification_id']}/reviews", review_body, 200)['data']
+        receipt = self.w3.eth.get_transaction_receipt(review['review_tx_hash'])
+        self.assertEqual(receipt.status, 1)
+        self.assertTrue(self.contract.functions.isLatestVerificationApproved(self.api.case_uint(self.case_id), 0).call())
+        self.post(f"/api/v1/verifications/{verification['verification_id']}/reviews", review_body, 409)
+        close_body = self.signed_close()
+        closed = self.post(f'/api/v1/cases/{self.case_id}/close', close_body, 200)
+        self.assertEqual(closed['chain_status'], 'CONFIRMED')
+        close_receipt = self.w3.eth.get_transaction_receipt(closed['tx_hash'])
+        self.assertEqual(close_receipt.status, 1)
+        chain_case = self.contract.functions.cases(self.api.case_uint(self.case_id)).call()
+        self.assertEqual(chain_case[1], 1)
+        self.assertTrue(self.api.cases_db[self.case_id]['is_closed'])
+        self.post(f'/api/v1/cases/{self.case_id}/close', close_body, 409)
+        self.results[-1].update(review_tx_hash=review['review_tx_hash'], close_tx_hash=closed['tx_hash'],
+                                chain_status='CLOSED', close_block=close_receipt.blockNumber)
+
+    def test_admin_cannot_accept_contradicted_or_close(self):
+        verification = self.verify(*self.seed(result='CALL_FAILED'), 'CONTRADICTED')
+        self.post(f"/api/v1/verifications/{verification['verification_id']}/reviews", self.signed_review(verification), 409)
+        self.post(f"/api/v1/verifications/{verification['verification_id']}/reviews",
+                  self.signed_review(verification, 'ACKNOWLEDGED'), 200)
+        self.post(f'/api/v1/cases/{self.case_id}/close', self.signed_close(), 409)
+
+    def test_admin_cannot_accept_insufficient_or_close(self):
+        verification = self.verify(*self.seed(with_proof=False), 'INSUFFICIENT')
+        self.post(f"/api/v1/verifications/{verification['verification_id']}/reviews", self.signed_review(verification), 409)
+        self.post(f'/api/v1/cases/{self.case_id}/close', self.signed_close(), 409)
+
+    def test_admin_invalid_signatures_rejected(self):
+        verification = self.verify(*self.seed(), 'SUPPORTED')
+        path = f"/api/v1/verifications/{verification['verification_id']}/reviews"
+        self.post(path, self.signed_review(verification, signer=self.agency), 403)
+        tampered = self.signed_review(verification); tampered['reason_text'] += '변조'
+        self.post(path, tampered, 403)
+        expired = self.signed_review(verification); expired['deadline'] = 1
+        self.post(path, expired, 403)
+        self.post(f'/api/v1/cases/{self.case_id}/close', self.signed_close(signer=self.agency), 403)
+        tampered = self.signed_close(); tampered['reason'] += '변조'
+        self.post(f'/api/v1/cases/{self.case_id}/close', tampered, 403)
+
+    def test_admin_approval_does_not_cover_new_verification(self):
+        claim, proofs = self.seed()
+        first = self.verify(claim, proofs, 'SUPPORTED')
+        self.post(f"/api/v1/verifications/{first['verification_id']}/reviews", self.signed_review(first), 200)
+        self.verify(claim, proofs, 'SUPPORTED')
+        self.assertFalse(self.contract.functions.isLatestVerificationApproved(self.api.case_uint(self.case_id), 0).call())
+        self.post(f'/api/v1/cases/{self.case_id}/close', self.signed_close(), 409)
 
 
 if __name__ == '__main__':

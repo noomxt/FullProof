@@ -1,0 +1,30 @@
+{
+  "chain_id": 31337,
+  "contract": "0x36b58F5C1969B7b6591D752ea6F5486D069010AB",
+  "live_ai": true,
+  "scenarios": [
+    {
+      "case": "AI-INTEGRATION-843e22c4adb7",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0x90ac251ed1586981e253092d2b99c647476c44e02ba065be5062f5ec5d8d2a56",
+      "tx_hash": "8cb19935a5dbdcf1f5ba346e821cdc587c3dbeabe0b483eeaf7a4cd818222f30",
+      "block_number": 96,
+      "review_tx_hash": "ab44c2dbe331820cb92eee37a40e40310ab0393dc77ac36fd684a23a1923f099",
+      "close_tx_hash": "e0d80796c6ff11e3438a1ce187358e8a5074839f78c8c9b2933e3e544b43f070",
+      "chain_status": "CLOSED",
+      "close_block": 98
+    }
+  ],
+  "extractions": [
+    {
+      "case": "AI-INTEGRATION-843e22c4adb7",
+      "status": "SUCCESS",
+      "error_code": null,
+      "model": "gemini-3.8-flash"
+    }
+  ],
+  "executed_tests": [
+    "test_ai_backend_integration.BackendIntegrationTests.test_admin_supported_approval_and_normal_closure"
+  ],
+  "failed_tests": []
+}
