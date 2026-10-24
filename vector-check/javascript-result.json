@@ -1,0 +1,13 @@
+{
+  "proof_hash": "0xd9491d4f357151184e95ba4f4044686cb93b88daaa62cd6d443614b236ca793b",
+  "digest": "0x0261a3ca1da9fddfe34b2d0e2643b1f3266b03a17c2d3cf5538074ea3e6e324b",
+  "checks": {
+    "proof_hash": true,
+    "digest": true,
+    "case_id": true,
+    "proof_id": true,
+    "proof_version": true,
+    "occurred_at": true,
+    "issued_at": true
+  }
+}

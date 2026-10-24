@@ -105,7 +105,13 @@ class AnchorRequest(BaseModel):
 
 
 def register_signed_draft_routes(app, cases_db, store, chain_context, *, policy_pack=None):
-    """Existing institution signs Claim + Proof + verdict as Jisu's contract expects.
+    """LEGACY v1 ONLY: incompatible with v1.1 ProofAttestation / Domain version 2.
+
+    Do not register this function for the v1.1 integration. It signs Claim +
+    Proof + verdict for the old contract. Merely adding proofVersion cannot
+    migrate its anchorProof arguments or its signature validation semantics.
+    v1.1 uses register_v11_routes for decisions; the backend owns independent
+    institution ProofAttestation creation, validation and anchoring.
 
     Unsigned drafts are explicitly provisional. After signing, anchoring uses
     immutable stored bytes/results and never reruns an LLM. No fabricated VALID

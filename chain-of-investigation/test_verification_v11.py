@@ -98,6 +98,80 @@ class VerificationTests(unittest.TestCase):
         self.proof['proof_occurred_at'] = '2026-10-18T05:10:01Z'
         self.assertEqual(self.run_case()['verdict'], 'CONTRADICTED')
 
+    def test_missing_field_takes_priority_over_result_conflict(self):
+        for side, field in (('claim', 'target_id'), ('proof', 'target_id'),
+                            ('claim', 'occurred_at'), ('proof', 'proof_occurred_at')):
+            for value in (None, '', '   '):
+                with self.subTest(side=side, field=field, value=value):
+                    self.setUp()
+                    record = self.proof if side == 'proof' else self.claim['structured_claim']['actions'][0]
+                    record[field] = value
+                    self.proof['result'] = 'CALL_FAILED'
+                    result = self.run_case()
+                    self.assertEqual(result['verdict'], 'INSUFFICIENT')
+                    self.assertIn('occurred_at' if field == 'proof_occurred_at' else field,
+                                  result['missing_information'])
+
+    def test_unknown_result_takes_priority_over_target_conflict(self):
+        for side in ('claim', 'proof'):
+            for value in ('UNKNOWN', None, '') if side == 'proof' else ('UNKNOWN',):
+                with self.subTest(side=side, value=value):
+                    self.setUp()
+                    self.proof['target_id'] = 'OTHER-SUBJECT'
+                    if side == 'claim':
+                        self.claim['structured_claim']['actions'][0]['action_result'] = value
+                    else:
+                        self.proof['result'] = value
+                    result = self.run_case()
+                    self.assertEqual(result['verdict'], 'INSUFFICIENT')
+                    self.assertIn('action_result', result['missing_information'])
+
+    def test_untrusted_proof_cannot_establish_conflict(self):
+        for status in ('PENDING', 'INVALID', 'FAILED', None):
+            with self.subTest(status=status):
+                self.setUp()
+                self.proof['result'] = 'CALL_FAILED'
+                self.validation[('PROOF-001', 1)]['status'] = status
+                result = self.run_case()
+                self.assertEqual(result['verdict'], 'INSUFFICIENT')
+                self.assertIn('PROOF_NOT_VALIDATED', result['missing_information'])
+                self.assertEqual(result['conflicts'], [])
+
+    def test_wrong_mapping_cannot_establish_conflict(self):
+        changes = [dict(mapping_status=s) for s in ('PENDING', 'AMBIGUOUS', 'REJECTED')]
+        changes += [dict(claim_version=2), dict(proof_version=2),
+                    dict(issuer_agency_id='OTHER'), dict(call_id='CALL-002')]
+        for change in changes:
+            with self.subTest(change=change):
+                self.setUp()
+                self.proof['result'] = 'CALL_FAILED'
+                self.mapping.update(change)
+                result = self.run_case()
+                self.assertEqual(result['verdict'], 'INSUFFICIENT')
+                self.assertIn('PROOF_MAPPING_AMBIGUOUS', result['missing_information'])
+                self.assertEqual(result['conflicts'], [])
+
+    def test_manual_selection_alone_does_not_establish_conflict(self):
+        self.proof['result'] = 'CALL_FAILED'
+        self.validation[('PROOF-001', 1)]['mapping_evidence_sufficient'] = False
+        self.assertEqual(self.run_case()['verdict'], 'INSUFFICIENT')
+
+    def test_confirmed_conflict_in_both_directions(self):
+        for claim_result, proof_result in (('SUCCESS', 'CALL_FAILED'), ('FAIL', 'CALL_CONNECTED')):
+            with self.subTest(claim_result=claim_result):
+                self.setUp()
+                self.claim['structured_claim']['actions'][0]['action_result'] = claim_result
+                self.proof['result'] = proof_result
+                result = self.run_case()
+                self.assertEqual(result['verdict'], 'CONTRADICTED')
+                self.assertEqual(result['missing_information'], [])
+                self.assertEqual(result['conflicts'][0]['reason_code'], 'RESULT_MISMATCH')
+
+    def test_invalid_time_is_input_error_not_verdict(self):
+        self.proof['proof_occurred_at'] = '2026-10-18 05:00:00'
+        with self.assertRaisesRegex(ValueError, 'INVALID_UTC_TIMESTAMP'):
+            self.run_case()
+
     def test_policy_and_claim_hash(self):
         p = deepcopy(POLICY)
         p['semantic_analysis_required'] = True
@@ -126,12 +200,63 @@ class VerificationTests(unittest.TestCase):
                     proof_validation=self.validation, canonicalize=rfc8785.dumps)
         app = FastAPI()
         register_v11_routes(app)
-        self.assertEqual(TestClient(app).post('/api/v1/verifications', json={}).status_code, 503)
+        with TestClient(app) as client:
+            unavailable = client.post('/api/v1/verifications', json={})
+        self.assertEqual(unavailable.status_code, 503)
+        self.assertFalse(unavailable.json()['success'])
+        self.assertIsNone(unavailable.json()['data'])
+        self.assertEqual(unavailable.json()['error']['code'], 'V11_BACKEND_RESOLVER_REQUIRED')
         app = FastAPI()
-        register_v11_routes(app, resolver=lambda request, body: args)
-        response = TestClient(app).post('/api/v1/verifications', json={})
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()['data']['verdict'], 'SUPPORTED')
+        received = []
+        def resolve(request, body):
+            received.append((request.url.path, body))
+            return args
+        register_v11_routes(app, resolver=resolve)
+        body = {'claim_id': 'CLAIM-001', 'claim_version': 1}
+        original_args = deepcopy(args)
+        with TestClient(app) as client:
+            for verdict in ('SUPPORTED', 'CONTRADICTED', 'INSUFFICIENT'):
+                with self.subTest(verdict=verdict):
+                    args = deepcopy(original_args)
+                    if verdict == 'CONTRADICTED':
+                        args['proofs'][0]['result'] = 'CALL_FAILED'
+                        proof = args['proofs'][0]
+                        proof['proof_hash'] = digest({k: proof[k] for k in PROOF_FIELDS}, rfc8785.dumps)
+                    elif verdict == 'INSUFFICIENT':
+                        args.update(proofs=[], mappings=[], proof_validation={})
+                    response = client.post('/api/v1/verifications', json=body)
+                    self.assertEqual(response.status_code, 200, response.text)
+                    envelope = response.json()
+                    self.assertTrue(envelope['success'])
+                    self.assertIsNone(envelope['error'])
+                    self.assertEqual(envelope['data']['verdict'], verdict)
+                    self.assertIsNone(envelope['data']['verification_tx_hash'])
+                    content = {k: v for k, v in envelope['data'].items()
+                               if k not in ('verification_hash', 'verification_tx_hash')}
+                    self.assertEqual(envelope['data']['verification_hash'], digest(content, rfc8785.dumps))
+                    if verdict == 'INSUFFICIENT':
+                        self.assertIn('PROOF_MISSING', envelope['data']['missing_information'])
+            self.assertEqual(received, [('/api/v1/verifications', body)] * 3)
+            for invalid in ('hash', 'reference', 'timestamp'):
+                with self.subTest(invalid=invalid):
+                    args = deepcopy(original_args)
+                    if invalid == 'hash':
+                        args['claim']['claim_text'] += '변조'
+                    elif invalid == 'reference':
+                        args['proofs'][0]['case_id'] = 'OTHER-CASE'
+                    else:
+                        args['claim']['structured_claim']['actions'][0]['occurred_at'] = 'invalid'
+                    response = client.post('/api/v1/verifications', json=body)
+                    self.assertEqual(response.status_code, 422, response.text)
+                    envelope = response.json()
+                    self.assertFalse(envelope['success'])
+                    self.assertIsNone(envelope['data'])
+                    self.assertEqual(envelope['error']['code'], 'INVALID_VERIFICATION_INPUT')
+                    self.assertEqual(envelope['error']['details'], {})
+            malformed = client.post('/api/v1/verifications', content='{',
+                                    headers={'Content-Type': 'application/json'})
+            self.assertEqual(malformed.status_code, 422)
+            self.assertEqual(malformed.json()['error']['code'], 'INVALID_VERIFICATION_INPUT')
 
     def test_parser_adapter(self):
         from unittest.mock import patch

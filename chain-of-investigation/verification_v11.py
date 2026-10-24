@@ -24,15 +24,14 @@ PROOF_FIELDS = ('schema_version proof_id proof_version case_id step_id '
 def extract_v11(claim, *, client=None):
     """Adapt the existing grounded parser without changing original Claim bytes."""
     from ai_engine import parse_claim_with_llm
-    from ai_provider import model_name
     from verification import normalize_claim, timestamp
     parsed = parse_claim_with_llm(claim['claim_text'], client=client)
     actions = normalize_claim(parsed).get('actions', [])
-    # Existing parser cannot distinguish CCTV requests from reviews reliably.
+    # Preserve the parser's distinct request/review types.
     # MVP v1.1 only permits PHONE_CALL in the decision function.
     renamed = []
     for action in actions:
-        renamed.append(dict(action_type={'CCTV_CHECK': 'CCTV_REVIEW', 'LOCATION_TRACE': 'LOCATION_REQUEST'}.get(action['action_type'], action['action_type']),
+        renamed.append(dict(action_type=action['action_type'],
                             action_result=action['status_claim'], target_id=action['target_id'],
                             occurred_at=timestamp(action['claimed_time']).strftime('%Y-%m-%dT%H:%M:%SZ') if action.get('claimed_time') else None,
                             source_excerpt=action['source_text']))
@@ -40,7 +39,8 @@ def extract_v11(claim, *, client=None):
     review = failed or len(renamed) != 1 or parsed.get('parse_status') != 'SUCCESS'
     return dict(schema_version='1.1', claim_id=claim['claim_id'], claim_version=claim['claim_version'],
                 extraction_status='FAILED' if failed else 'NEEDS_REVIEW' if review else 'COMPLETED',
-                actions=renamed, model_name=model_name(), prompt_version='parse-v1-v11-adapter', review_required=review)
+                actions=renamed, model_name=parsed.get('model_name'),
+                prompt_version=parsed.get('prompt_version'), review_required=review)
 
 
 def digest(value, canonicalize):
@@ -60,6 +60,12 @@ def utc(value):
     if not isinstance(value, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z', value):
         raise ValueError('INVALID_UTC_TIMESTAMP')
     return datetime.strptime(value, '%Y-%m-%dT%H:%M:%SZ')
+
+
+def missing_comparison_value(value):
+    """Blank text is absent evidence; never rewrite original/hash input values."""
+    return value is None or (isinstance(value, str) and
+                             (not value.strip() or value == 'UNKNOWN'))
 
 
 def ref(record, kind):
@@ -185,7 +191,7 @@ def verify_v11(*, claim, proofs, mappings, proof_validation, canonicalize,
                       'action_result': outcome, 'occurred_at': proof.get('proof_occurred_at')}
             for field in sorted(set(fields) | {'occurred_at'}):
                 left, right = action.get(field), values[field]
-                if left in (None, '', 'UNKNOWN') or right in (None, '', 'UNKNOWN'):
+                if missing_comparison_value(left) or missing_comparison_value(right):
                     missing.append(field)
                     continue
                 same = left == right
