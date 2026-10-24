@@ -79,7 +79,7 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
     caseId = BigInt(
       ethers.keccak256(ethers.toUtf8Bytes("CASE_2026_001"))
     );
-    
+
     // 테스트용 Claim 원본 작성자 식별자
     authorIdHash = ethers.sha256(
       ethers.toUtf8Bytes("TEST-POLICE-AUTHOR-001")
@@ -573,7 +573,7 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
       signature
     );
 
-    
+
     // v1.1 관리자 승인·최신성 검사 구현 전에는 종결을 차단한다.
     await expect(
       contract.closeCase(
@@ -662,7 +662,7 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
       step1.agency,
       sig1
     );
-    
+
     // 기존 VERIFIED 상태만으로는 종결할 수 없어야 한다.
     await expect(
       contract.closeCase(
@@ -673,7 +673,7 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
       "Cannot close: no verification"
     );
 
-    
+
     // v1.1 종결 조건을 충족하지 않았으므로 사건은 OPEN으로 유지
     const caseInfo = await contract.cases(caseId);
 
@@ -710,7 +710,7 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
 
     const length = await contract.getClaimHistoryLength(caseId, 0);
     expect(length).to.equal(1n);
-    
+
     // 온체인에 저장된 Claim 원본 정보 확인
     const savedClaim = await contract.getClaimRecord(caseId, 0, 0);
 
@@ -720,7 +720,7 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
     // 블록체인 등록자와 원본 작성자 정보는 별도로 보존
     expect(savedClaim.recorder).to.equal(await admin.getAddress());
     expect(savedClaim.recordedAt).to.be.greaterThanOrEqual(inputAt);
-    
+
     // 작성자 식별자가 비어 있으면 등록 거부
     await expect(
       contract.connect(admin).anchorClaim(
@@ -1194,7 +1194,7 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
       domain, types, request2
     );
 
-    
+
     // 동일 Proof ID라도 버전이 다르면 등록 가능
     await expect(
       contract.anchorProofAttestation(request2, signature2)
@@ -1219,7 +1219,7 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
     expect(
       await contract.agencyNonces(telecom.address)
     ).to.equal(request2.nonce + 1n);
-  
+
     // 동일 Proof ID와 v2를 새로운 서명으로 다시 등록하면 거부
     const duplicateRequest = {
       ...request2,
@@ -1803,7 +1803,7 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
     await contract.connect(admin).anchorClaim(
       caseId, 0, claimIdHash, 1, claimHash, authorIdHash, inputAt
     );
-    
+
     // 기관 Proof 등록: 실제 통신사 서명을 검증한다.
     const latestBlock = await ethers.provider.getBlock("latest");
 
@@ -1922,7 +1922,7 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
 
     expect(verification.verificationHash).to.equal(verificationHash);
     expect(verification.verdict).to.equal(1n);
-    
+
   });
 
 
@@ -1982,7 +1982,7 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
     await contract.connect(admin).anchorClaim(
       caseId, 0, claimIdHash, 1, claimHash, authorIdHash, inputAt
     );
-    
+
     // 기관 Proof 등록: 실제 통신사 서명을 검증한다.
     const latestBlock = await ethers.provider.getBlock("latest");
 
@@ -2101,7 +2101,7 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
 
     expect(verification.verificationHash).to.equal(verificationHash);
     expect(verification.verdict).to.equal(1n);
-    
+
     // 8. 두 번째 필수 단계(stepId=1)의 Claim 등록
     const claimIdHash2 = ethers.sha256(
       ethers.toUtf8Bytes("CLAIM-CLOSE-002")
@@ -2191,4 +2191,530 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
 
   });
 
+it("29. 관리자 승인 이후 Claim이 변경되면 사건 종결을 차단한다", async function () {
+    const claimIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("CLAIM-REVIEW-001")
+    );
+
+    const claimHash = ethers.sha256(
+      ethers.toUtf8Bytes("통화 연결에 성공했다.")
+    );
+
+    const verificationIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("VERIFY-REVIEW-001")
+    );
+
+    // 단위 테스트용 해시 (실제 JCS 계산 결과는 아님)
+    const proofRefsHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-REVIEW-PROOF-REFS")
+    );
+
+    const policyHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-REVIEW-POLICY")
+    );
+
+    const verificationHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-REVIEW-VERIFICATION")
+    );
+
+    // 1. Claim 기록
+    await contract.connect(admin).anchorClaim(
+      caseId, 0, claimIdHash, 1, claimHash, authorIdHash, inputAt
+    );
+
+    // 기관 Proof 등록: 실제 통신사 서명을 검증한다.
+    const latestBlock = await ethers.provider.getBlock("latest");
+
+    if (!latestBlock) {
+      throw new Error("Latest block unavailable");
+    }
+
+    const proofRequest = {
+      caseId,
+      stepId: 0n,
+      proofIdHash: ethers.sha256(
+        ethers.toUtf8Bytes("PROOF-REVIEW-001")
+      ),
+      proofVersion: 1n,
+      proofHash: ethers.sha256(
+        ethers.toUtf8Bytes("통신사 통화 연결 기록")
+      ),
+      occurredAt: BigInt(latestBlock.timestamp - 120),
+      issuedAt: BigInt(latestBlock.timestamp - 60),
+      agency: telecom.address,
+      nonce: await contract.agencyNonces(telecom.address),
+      deadline: BigInt(latestBlock.timestamp + 3600),
+    };
+
+    const networkInfo = await ethers.provider.getNetwork();
+
+    const domain = {
+      name: "FullProof",
+      version: "2",
+      chainId: networkInfo.chainId,
+      verifyingContract: await contract.getAddress(),
+    };
+
+    const types = {
+      ProofAttestation: [
+        { name: "caseId", type: "uint256" },
+        { name: "stepId", type: "uint256" },
+        { name: "proofIdHash", type: "bytes32" },
+        { name: "proofVersion", type: "uint256" },
+        { name: "proofHash", type: "bytes32" },
+        { name: "occurredAt", type: "uint64" },
+        { name: "issuedAt", type: "uint64" },
+        { name: "agency", type: "address" },
+        { name: "nonce", type: "uint256" },
+        { name: "deadline", type: "uint64" },
+      ],
+    };
+
+    const proofSignature = await telecom.signTypedData(
+      domain,
+      types,
+      proofRequest
+    );
+
+    await contract.anchorProofAttestation(
+      proofRequest,
+      proofSignature
+    );
+
+    // 기관 Proof가 실제 온체인에 등록되었는지 확인
+    expect(
+      await contract.getAgencyProofHistoryLength(caseId, 0)
+    ).to.equal(1n);
+
+    // 2. 시스템 기록자 권한 부여
+    await contract.connect(admin).setVerificationRecorder(
+      await police.getAddress(),
+      true
+    );
+
+    // 3. Verification 기록
+    await contract.connect(police).anchorVerification(
+      caseId,
+      0,
+      verificationIdHash,
+      claimIdHash,
+      1,
+      claimHash,
+      proofRefsHash,
+      policyHash,
+      verificationHash,
+      1 // SUPPORTED
+    );
+
+    // 4. 관리자 승인 기록
+    await contract.connect(admin).recordVerificationReview(
+      caseId,
+      0,
+      verificationIdHash,
+      verificationHash,
+      1 // APPROVE
+    );
+
+    // 5. 관리자 확인 이력 개수
+    const count = await contract.getVerificationReviewHistoryLength(
+      caseId, 0
+    );
+
+    expect(count).to.equal(1n);
+
+    // 6. 관리자 승인 이력 조회
+    const review = await contract.getVerificationReviewRecord(
+      caseId, 0, 0
+    );
+
+    expect(review.verificationIdHash).to.equal(verificationIdHash);
+    expect(review.verificationHash).to.equal(verificationHash);
+    expect(review.action).to.equal(1n);
+    expect(review.reviewer).to.equal(await admin.getAddress());
+    expect(review.reviewedAt).to.be.greaterThan(0n);
+
+    // 7. 기존 Verification 기록이 변경되지 않았는지 확인
+    const verification = await contract.getVerificationRecord(
+      caseId, 0, 0
+    );
+
+    expect(verification.verificationHash).to.equal(verificationHash);
+    expect(verification.verdict).to.equal(1n);
+
+    // 8. 두 번째 필수 단계(stepId=1)의 Claim 등록
+    const claimIdHash2 = ethers.sha256(
+      ethers.toUtf8Bytes("CLAIM-CLOSE-002")
+    );
+
+    const claimHash2 = ethers.sha256(
+      ethers.toUtf8Bytes("관련 CCTV 확인 완료")
+    );
+
+    await contract.connect(admin).anchorClaim(
+      caseId, 1, claimIdHash2, 1, claimHash2, authorIdHash, inputAt
+    );
+
+    // 9. 두 번째 필수 단계의 Mock 기관 Proof 등록
+    const block2 = await ethers.provider.getBlock("latest");
+
+    if (!block2) {
+      throw new Error("Latest block unavailable");
+    }
+
+    const proofRequest2 = {
+      caseId,
+      stepId: 1n,
+      proofIdHash: ethers.sha256(
+        ethers.toUtf8Bytes("PROOF-CLOSE-002")
+      ),
+      proofVersion: 1n,
+      proofHash: ethers.sha256(
+        ethers.toUtf8Bytes("TEST-STEP-1-PROOF")
+      ),
+      occurredAt: BigInt(block2.timestamp - 120),
+      issuedAt: BigInt(block2.timestamp - 60),
+      agency: telecom.address,
+      nonce: await contract.agencyNonces(telecom.address),
+      deadline: BigInt(block2.timestamp + 3600),
+    };
+
+    const proofSignature2 = await telecom.signTypedData(
+      domain,
+      types,
+      proofRequest2
+    );
+
+    await contract.anchorProofAttestation(
+      proofRequest2,
+      proofSignature2
+    );
+
+    // 10. 두 번째 필수 단계에 SUPPORTED Verification 기록
+    const verificationIdHash2 = ethers.sha256(
+      ethers.toUtf8Bytes("VERIFY-CLOSE-002")
+    );
+
+    const verificationHash2 = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-STEP-1-VERIFICATION")
+    );
+
+    await contract.connect(police).anchorVerification(
+      caseId,
+      1,
+      verificationIdHash2,
+      claimIdHash2,
+      1,
+      claimHash2,
+      ethers.sha256(ethers.toUtf8Bytes("TEST-STEP-1-REFS")),
+      policyHash,
+      verificationHash2,
+      1 // SUPPORTED
+    );
+
+    // 11. 두 번째 필수 단계도 관리자 승인
+    await contract.connect(admin).recordVerificationReview(
+      caseId,
+      1,
+      verificationIdHash2,
+      verificationHash2,
+      1 // APPROVE
+    );
+
+
+    // 12. 관리자 승인 이후 0번 단계의 Claim을 v2로 변경
+    const updatedClaimHash = ethers.sha256(
+      ethers.toUtf8Bytes("보호자 연락 결과 수정")
+    );
+
+    await contract.connect(admin).anchorClaim(
+      caseId,
+      0,
+      claimIdHash, // 기존 Claim ID 유지
+      2,           // Claim 버전 증가
+      updatedClaimHash,
+      authorIdHash,
+      inputAt
+    );
+
+    // 13. 이전 승인만으로 사건을 종결할 수 없어야 함
+    await expect(
+      contract.connect(admin).closeCase(
+        caseId,
+        "변경된 Claim에 대한 재검증 없이 종결 시도"
+      )
+    ).to.be.revertedWith("Cannot close: outdated Claim");
+
+  });
+it("30. 관리자 승인 이후 Proof가 추가되면 사건 종결을 차단한다", async function () {
+    const claimIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("CLAIM-REVIEW-001")
+    );
+
+    const claimHash = ethers.sha256(
+      ethers.toUtf8Bytes("통화 연결에 성공했다.")
+    );
+
+    const verificationIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("VERIFY-REVIEW-001")
+    );
+
+    // 단위 테스트용 해시 (실제 JCS 계산 결과는 아님)
+    const proofRefsHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-REVIEW-PROOF-REFS")
+    );
+
+    const policyHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-REVIEW-POLICY")
+    );
+
+    const verificationHash = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-REVIEW-VERIFICATION")
+    );
+
+    // 1. Claim 기록
+    await contract.connect(admin).anchorClaim(
+      caseId, 0, claimIdHash, 1, claimHash, authorIdHash, inputAt
+    );
+
+    // 기관 Proof 등록: 실제 통신사 서명을 검증한다.
+    const latestBlock = await ethers.provider.getBlock("latest");
+
+    if (!latestBlock) {
+      throw new Error("Latest block unavailable");
+    }
+
+    const proofRequest = {
+      caseId,
+      stepId: 0n,
+      proofIdHash: ethers.sha256(
+        ethers.toUtf8Bytes("PROOF-REVIEW-001")
+      ),
+      proofVersion: 1n,
+      proofHash: ethers.sha256(
+        ethers.toUtf8Bytes("통신사 통화 연결 기록")
+      ),
+      occurredAt: BigInt(latestBlock.timestamp - 120),
+      issuedAt: BigInt(latestBlock.timestamp - 60),
+      agency: telecom.address,
+      nonce: await contract.agencyNonces(telecom.address),
+      deadline: BigInt(latestBlock.timestamp + 3600),
+    };
+
+    const networkInfo = await ethers.provider.getNetwork();
+
+    const domain = {
+      name: "FullProof",
+      version: "2",
+      chainId: networkInfo.chainId,
+      verifyingContract: await contract.getAddress(),
+    };
+
+    const types = {
+      ProofAttestation: [
+        { name: "caseId", type: "uint256" },
+        { name: "stepId", type: "uint256" },
+        { name: "proofIdHash", type: "bytes32" },
+        { name: "proofVersion", type: "uint256" },
+        { name: "proofHash", type: "bytes32" },
+        { name: "occurredAt", type: "uint64" },
+        { name: "issuedAt", type: "uint64" },
+        { name: "agency", type: "address" },
+        { name: "nonce", type: "uint256" },
+        { name: "deadline", type: "uint64" },
+      ],
+    };
+
+    const proofSignature = await telecom.signTypedData(
+      domain,
+      types,
+      proofRequest
+    );
+
+    await contract.anchorProofAttestation(
+      proofRequest,
+      proofSignature
+    );
+
+    // 기관 Proof가 실제 온체인에 등록되었는지 확인
+    expect(
+      await contract.getAgencyProofHistoryLength(caseId, 0)
+    ).to.equal(1n);
+
+    // 2. 시스템 기록자 권한 부여
+    await contract.connect(admin).setVerificationRecorder(
+      await police.getAddress(),
+      true
+    );
+
+    // 3. Verification 기록
+    await contract.connect(police).anchorVerification(
+      caseId,
+      0,
+      verificationIdHash,
+      claimIdHash,
+      1,
+      claimHash,
+      proofRefsHash,
+      policyHash,
+      verificationHash,
+      1 // SUPPORTED
+    );
+
+    // 4. 관리자 승인 기록
+    await contract.connect(admin).recordVerificationReview(
+      caseId,
+      0,
+      verificationIdHash,
+      verificationHash,
+      1 // APPROVE
+    );
+
+    // 5. 관리자 확인 이력 개수
+    const count = await contract.getVerificationReviewHistoryLength(
+      caseId, 0
+    );
+
+    expect(count).to.equal(1n);
+
+    // 6. 관리자 승인 이력 조회
+    const review = await contract.getVerificationReviewRecord(
+      caseId, 0, 0
+    );
+
+    expect(review.verificationIdHash).to.equal(verificationIdHash);
+    expect(review.verificationHash).to.equal(verificationHash);
+    expect(review.action).to.equal(1n);
+    expect(review.reviewer).to.equal(await admin.getAddress());
+    expect(review.reviewedAt).to.be.greaterThan(0n);
+
+    // 7. 기존 Verification 기록이 변경되지 않았는지 확인
+    const verification = await contract.getVerificationRecord(
+      caseId, 0, 0
+    );
+
+    expect(verification.verificationHash).to.equal(verificationHash);
+    expect(verification.verdict).to.equal(1n);
+
+    // 8. 두 번째 필수 단계(stepId=1)의 Claim 등록
+    const claimIdHash2 = ethers.sha256(
+      ethers.toUtf8Bytes("CLAIM-CLOSE-002")
+    );
+
+    const claimHash2 = ethers.sha256(
+      ethers.toUtf8Bytes("관련 CCTV 확인 완료")
+    );
+
+    await contract.connect(admin).anchorClaim(
+      caseId, 1, claimIdHash2, 1, claimHash2, authorIdHash, inputAt
+    );
+
+    // 9. 두 번째 필수 단계의 Mock 기관 Proof 등록
+    const block2 = await ethers.provider.getBlock("latest");
+
+    if (!block2) {
+      throw new Error("Latest block unavailable");
+    }
+
+    const proofRequest2 = {
+      caseId,
+      stepId: 1n,
+      proofIdHash: ethers.sha256(
+        ethers.toUtf8Bytes("PROOF-CLOSE-002")
+      ),
+      proofVersion: 1n,
+      proofHash: ethers.sha256(
+        ethers.toUtf8Bytes("TEST-STEP-1-PROOF")
+      ),
+      occurredAt: BigInt(block2.timestamp - 120),
+      issuedAt: BigInt(block2.timestamp - 60),
+      agency: telecom.address,
+      nonce: await contract.agencyNonces(telecom.address),
+      deadline: BigInt(block2.timestamp + 3600),
+    };
+
+    const proofSignature2 = await telecom.signTypedData(
+      domain,
+      types,
+      proofRequest2
+    );
+
+    await contract.anchorProofAttestation(
+      proofRequest2,
+      proofSignature2
+    );
+
+    // 10. 두 번째 필수 단계에 SUPPORTED Verification 기록
+    const verificationIdHash2 = ethers.sha256(
+      ethers.toUtf8Bytes("VERIFY-CLOSE-002")
+    );
+
+    const verificationHash2 = ethers.sha256(
+      ethers.toUtf8Bytes("TEST-STEP-1-VERIFICATION")
+    );
+
+    await contract.connect(police).anchorVerification(
+      caseId,
+      1,
+      verificationIdHash2,
+      claimIdHash2,
+      1,
+      claimHash2,
+      ethers.sha256(ethers.toUtf8Bytes("TEST-STEP-1-REFS")),
+      policyHash,
+      verificationHash2,
+      1 // SUPPORTED
+    );
+
+    // 11. 두 번째 필수 단계도 관리자 승인
+    await contract.connect(admin).recordVerificationReview(
+      caseId,
+      1,
+      verificationIdHash2,
+      verificationHash2,
+      1 // APPROVE
+    );
+
+
+
+    // 12. 관리자 승인 이후 새로운 기관 Proof 등록
+    const block3 = await ethers.provider.getBlock("latest");
+
+    if (!block3) {
+      throw new Error("Latest block unavailable");
+    }
+
+    const updatedProofRequest = {
+      ...proofRequest,
+      proofIdHash: ethers.sha256(
+        ethers.toUtf8Bytes("PROOF-AFTER-APPROVAL-001")
+      ),
+      proofHash: ethers.sha256(
+        ethers.toUtf8Bytes("관리자 승인 이후 추가된 통신사 자료")
+      ),
+      occurredAt: BigInt(block3.timestamp - 120),
+      issuedAt: BigInt(block3.timestamp - 60),
+      nonce: await contract.agencyNonces(telecom.address),
+      deadline: BigInt(block3.timestamp + 3600),
+    };
+
+    const updatedProofSignature = await telecom.signTypedData(
+      domain,
+      types,
+      updatedProofRequest
+    );
+
+    await contract.anchorProofAttestation(
+      updatedProofRequest,
+      updatedProofSignature
+    );
+
+    // 13. 기존 승인으로 사건 종결을 시도하면 차단되어야 함
+    await expect(
+      contract.connect(admin).closeCase(
+        caseId,
+        "Proof 추가 이후 재검증 없이 종결 시도"
+      )
+    ).to.be.revertedWith("Cannot close: Proof history changed");
+
+  });
 });

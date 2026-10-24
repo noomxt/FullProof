@@ -27,6 +27,7 @@ request = {
     "caseId": case_uint(case_id),
     "stepId": 0,
     "proofIdHash": proof_id_hash,
+    "proofVersion": 1,
     "proofHash": proof_hash,
     "occurredAt": block_time - 120,
     "issuedAt": block_time - 60,
@@ -47,12 +48,13 @@ types = {
         {"name": "caseId", "type": "uint256"},
         {"name": "stepId", "type": "uint256"},
         {"name": "proofIdHash", "type": "bytes32"},
+        {"name": "proofVersion", "type": "uint256"},
         {"name": "proofHash", "type": "bytes32"},
         {"name": "occurredAt", "type": "uint64"},
         {"name": "issuedAt", "type": "uint64"},
         {"name": "agency", "type": "address"},
         {"name": "nonce", "type": "uint256"},
-        {"name": "deadline", "type": "uint64"},
+        {"name": "deadline", "type": "uint64"}
     ]
 }
 
@@ -101,6 +103,7 @@ print("서명:", signature.get("result"))
 
 # FastAPI에 제출할 요청 JSON
 api_payload = {
+    "proof_version": 1,
     "case_id": case_id,
     "step_id": request["stepId"],
     "proof_id": proof_id,

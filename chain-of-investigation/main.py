@@ -5,6 +5,14 @@ signers; this server never fabricates an agency signature.
 """
 
 from verification_v11 import POLICY, PROOF_FIELDS, verify_v11
+
+import os
+import secrets
+
+from eth_account import Account
+from eth_account.messages import encode_defunct
+
+import time
 import rfc8785
 import hashlib
 import json
@@ -108,8 +116,12 @@ def confirmed(tx):
         raise HTTPException(400, "Blockchain transaction reverted")
     return tx.hex()
 
-def case_uint(case_id: str):
-    return int(case_id) if case_id.isdigit() else int(hashlib.sha256(case_id.encode()).hexdigest(), 16)
+def case_uint(case_id: str) -> int:
+    return int.from_bytes(
+        hashlib.sha256(case_id.encode("utf-8")).digest(),
+        byteorder="big"
+    )
+
 
 def canonical_hash(obj):
     return Web3.keccak(text=json.dumps(obj, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str))
@@ -153,6 +165,165 @@ def v11_proof_hash(proof):
         )
 
     return v11_sha256(content)
+
+
+# FullProof v1.1 - Mock Draft 보관
+# 개발용 메모리 저장. 서버 재시작 시 초기화된다.
+PROOF_DRAFTS = {}
+
+
+class ProofDraftSchema(BaseModel):
+    proof_content: dict
+    source_text: str
+    nonce: int = Field(ge=0)
+    deadline: int = Field(gt=0)
+
+
+@app.post("/api/v1/proofs/drafts", status_code=201)
+def create_proof_draft(data: ProofDraftSchema):
+    from datetime import datetime, timezone
+    from hash_utils import hash_proof_content
+
+    require_chain()
+
+    proof = dict(data.proof_content)
+
+    # 1. Mock 원본 해시를 백엔드에서 직접 생성
+    source_bytes = data.source_text.encode("utf-8")
+    proof["source_sha256"] = (
+        "0x" + hashlib.sha256(source_bytes).hexdigest()
+    )
+
+    # 2. 공식 v1.1 Proof 필드 검증 및 해시 계산
+    try:
+        proof_hash = hash_proof_content(proof)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(422, str(exc))
+
+    if proof_hash != v11_proof_hash(proof):
+        raise HTTPException(500, "Proof hash mismatch")
+
+    # 3. 사건 및 단계 검증
+    case = cases_db.get(proof["case_id"])
+
+    if not case:
+        raise HTTPException(404, "Case not found")
+
+    if case["is_closed"]:
+        raise HTTPException(409, "Case already closed")
+
+    step_id = proof["step_id"]
+    if step_id >= len(case["steps"]):
+        raise HTTPException(400, "Invalid step_id")
+
+    if not Web3.is_address(proof["agency_address"]):
+        raise HTTPException(422, "Invalid agency address")
+
+    agency = Web3.to_checksum_address(
+        proof["agency_address"]
+    )
+
+    # 4. UTC 시간 문자열을 Unix timestamp로 변환
+    def to_timestamp(value):
+        if not isinstance(value, str):
+            raise HTTPException(422, "Invalid UTC timestamp")
+
+        try:
+            dt = datetime.strptime(
+                value, "%Y-%m-%dT%H:%M:%SZ"
+            ).replace(tzinfo=timezone.utc)
+            return int(dt.timestamp())
+        except ValueError:
+            raise HTTPException(422, "Invalid UTC timestamp")
+
+    if proof["proof_occurred_at"] is None:
+        raise HTTPException(
+            422,
+            "Signed MVP Proof requires proof_occurred_at"
+        )
+
+    occurred_at = to_timestamp(proof["proof_occurred_at"])
+    issued_at = to_timestamp(proof["proof_issued_at"])
+
+    if issued_at < occurred_at:
+        raise HTTPException(422, "Invalid proof timestamps")
+
+    proof_id_hash = (
+        "0x" + hashlib.sha256(
+            proof["proof_id"].encode("utf-8")
+        ).hexdigest()
+    )
+
+    # 5. B안 EIP-712 서명 데이터 구성
+    typed_data = {
+        "types": {
+            "ProofAttestation": [
+                {"name": "caseId", "type": "uint256"},
+                {"name": "stepId", "type": "uint256"},
+                {"name": "proofIdHash", "type": "bytes32"},
+                {"name": "proofVersion", "type": "uint256"},
+                {"name": "proofHash", "type": "bytes32"},
+                {"name": "occurredAt", "type": "uint64"},
+                {"name": "issuedAt", "type": "uint64"},
+                {"name": "agency", "type": "address"},
+                {"name": "nonce", "type": "uint256"},
+                {"name": "deadline", "type": "uint64"}
+            ]
+        },
+        "primaryType": "ProofAttestation",
+        "domain": {
+            "name": "FullProof",
+            "version": "2",
+            "chainId": w3.eth.chain_id,
+            "verifyingContract": contract.address
+        },
+        "message": {
+            "caseId": str(case_uint(proof["case_id"])),
+            "stepId": str(step_id),
+            "proofIdHash": proof_id_hash,
+            "proofVersion": str(proof["proof_version"]),
+            "proofHash": proof_hash,
+            "occurredAt": str(occurred_at),
+            "issuedAt": str(issued_at),
+            "agency": agency,
+            "nonce": str(data.nonce),
+            "deadline": str(data.deadline)
+        }
+    }
+
+    # 6. Draft 저장 - 동일 ID/버전 덮어쓰기 금지
+    draft_key = (
+        proof["case_id"],
+        proof["proof_id"],
+        proof["proof_version"]
+    )
+
+    if draft_key in PROOF_DRAFTS:
+        raise HTTPException(
+            409,
+            "Draft already exists for this Proof version"
+        )
+
+    PROOF_DRAFTS[draft_key] = {
+        "proof_content": proof,
+        "source_bytes": source_bytes,
+        "proof_hash": proof_hash,
+        "typed_data": typed_data,
+        "status": "UNSIGNED"
+    }
+
+    return {
+        "success": True,
+        "data": {
+            "proof_content": proof,
+            "source_sha256": proof["source_sha256"],
+            "proof_hash": proof_hash,
+            "typed_data": typed_data,
+            "draft_status": "UNSIGNED"
+        },
+        "error": None
+    }
+
 
 
 def validate_v11_onchain_proof(proof):
@@ -202,6 +373,61 @@ def validate_v11_onchain_proof(proof):
                 "Proof is not the latest registered agency Proof"
             )
 
+
+        # FullProof v1.1 - 백엔드 Mock 원본 검증
+        draft_key = (
+            case_id,
+            proof_id,
+            proof_version
+        )
+
+        draft = PROOF_DRAFTS.get(draft_key)
+
+        if draft is None:
+            raise HTTPException(
+                409,
+                "Verified Proof Draft not found"
+            )
+
+        # 기관 서명과 온체인 기록이 완료된 Draft만 인정
+        if draft["status"] != "ANCHORED":
+            raise HTTPException(
+                409,
+                "Proof has not been anchored"
+            )
+
+        # 저장한 실제 Mock 원본 바이트 검증
+        expected_source_hash = (
+            "0x" + hashlib.sha256(
+                draft["source_bytes"]
+            ).hexdigest()
+        )
+
+        if (
+            expected_source_hash
+            != draft["proof_content"]["source_sha256"]
+        ):
+            raise HTTPException(
+                409,
+                "Proof source integrity mismatch"
+            )
+
+        # 검증 요청에 포함된 Proof가
+        # 실제 서명 및 기록된 Draft와 동일한지 확인
+        if draft["proof_hash"] != proof_hash:
+            raise HTTPException(
+                409,
+                "Proof differs from anchored Draft"
+            )
+
+        if (
+            draft["proof_content"]["agency_address"].lower()
+            != agency.lower()
+        ):
+            raise HTTPException(
+                409,
+                "Proof agency mismatch"
+            )
         return {
             "proof_id": proof_id,
             "proof_version": proof_version,
@@ -264,7 +490,7 @@ def validate_v11_onchain_claim(claim):
                 400,
                 "Claim does not match on-chain record"
             )
-        
+
         # v1.1: 과거 Claim이 아닌 최신 Claim만 검증에 사용
         latest_claim = contract.functions.getLatestClaim(
             case_uint(case_id),
@@ -318,7 +544,7 @@ def anchor_v11_verification(result):
 
     # 공식 JCS/SHA-256 해시 확인
     verification_hash = validate_v11_verification_hashes(result)
-    
+
     # 온체인 기록 직전 최신 Claim 참조 확인
     chain_case_id = case_uint(result["case_id"])
     step_id = result["step_id"]
@@ -352,7 +578,7 @@ def anchor_v11_verification(result):
     # Verification이 참조한 모든 Proof의 최신성 재확인
     # proof_refs에는 agency 주소가 없으므로, 기관과 연결된
     # 검증 완료 원본 데이터가 필요한 검사는 호출 전에 수행해야 한다.
-    
+
     # v1.1: Verification이 참조한 Proof가 실제 온체인에
     # 존재하며 해당 기관의 최신 버전인지 확인한다.
     proof_refs = result["proof_refs"]
@@ -448,32 +674,66 @@ def anchor_v11_verification(result):
 
 
 
+
 def process_v11_verification(validated_inputs):
-    """온체인 입력 검증 → AI 판정 → Verification 기록"""
+    """FullProof v1.1 - 검증된 입력만 AI Rule Engine에 전달"""
 
     from verification_v11 import verify_v11
 
     claim = validated_inputs["claim"]
     proofs = validated_inputs["proofs"]
 
-    # 1. Claim 원문과 온체인 기록 대조
+    # 1. 백엔드가 Claim과 Proof를 직접 검증
     validate_v11_onchain_claim(claim)
 
-    # 2. Proof 원문과 최신 온체인 기록 대조
+    verified_proofs = {}
+
     for proof in proofs:
-        validate_v11_onchain_proof(proof)
+        validation = validate_v11_onchain_proof(proof)
 
+        key = (
+            validation["proof_id"],
+            validation["proof_version"]
+        )
 
-    # 3. AI Rule Engine으로 최종 판정
-    result = verify_v11(
+        if key in verified_proofs:
+            raise HTTPException(
+                409,
+                "Duplicate Proof version"
+            )
+
+        verified_proofs[key] = {
+             "status": "VALID",
+            # 독립적인 매핑 근거 충분성 검증이
+            # 구현되기 전에는 True로 설정하지 않는다.
+            "mapping_evidence_sufficient": False
+        }
+
+    # 2. 매핑 근거는 현재 백엔드에서 독립 검증되지 않음
+    # 외부 입력의 mapping_evidence_sufficient=True를 신뢰하지 않는다.
+    safe_mappings = []
+
+    for mapping in validated_inputs.get("mappings", []):
+        safe_mapping = dict(mapping)
+        safe_mapping["mapping_evidence_sufficient"] = False
+        safe_mappings.append(safe_mapping)
+
+    # 3. 백엔드 검증 결과만 AI에 전달
+    safe_inputs = {
         **validated_inputs,
+        "proof_validation": verified_proofs,
+        "mappings": safe_mappings
+    }
+
+    result = verify_v11(
+        **safe_inputs,
         canonicalize=rfc8785.dumps
     )
 
-    # 4. 공식 해시 검증
+    # 4. v1.1 해시 검증
     validate_v11_verification_hashes(result)
 
-    # 5. 확정되지 않은 결과는 온체인에 기록하지 않음
+    # 5. 확정된 판정만 온체인 기록
     if (
         result["processing_status"] != "COMPLETED"
         or result["verdict"] not in (
@@ -484,7 +744,6 @@ def process_v11_verification(validated_inputs):
     ):
         return result
 
-    # 6. 검증된 Verification 온체인 기록
     anchor_result = anchor_v11_verification(result)
 
     result["verification_tx_hash"] = (
@@ -800,7 +1059,7 @@ def create_claim(case_id: str, data: ClaimCreateSchema):
     ).hexdigest()
 
     claim_hash = hash_claim_text(data.claim_text)
-    
+
     # Claim 원본 작성자 식별자와 입력 시각
     # 현재 API에 작성자 입력 필드가 없으므로 인증된 등록자 주소를 임시 식별자로 사용
     author_id_hash = "0x" + hashlib.sha256(
@@ -808,7 +1067,7 @@ def create_claim(case_id: str, data: ClaimCreateSchema):
     ).hexdigest()
 
     # 서버가 원본을 처음 접수한 시각으로 기록
-    input_at = int(time.time())
+    input_at = int(w3.eth.get_block("latest")["timestamp"])
 
     # 4. 블록체인에 Claim 기록
     try:
@@ -902,6 +1161,71 @@ def get_claim_history(case_id: str, step_id: int):
 def anchor_agency_proof(data: ProofAttestationSchema):
     require_chain()
 
+    # FullProof v1.1 - Draft 검증
+    draft_key = (
+        data.case_id,
+        data.proof_id,
+        data.proof_version
+    )
+
+    draft = PROOF_DRAFTS.get(draft_key)
+
+    if draft is None:
+        raise HTTPException(
+            409,
+            "Verified Proof Draft not found"
+        )
+
+    if draft["status"] != "UNSIGNED":
+        raise HTTPException(
+            409,
+            "Proof Draft already submitted"
+        )
+
+    # 저장된 Mock 원본 바이트의 무결성 재검사
+    source_hash = "0x" + hashlib.sha256(
+        draft["source_bytes"]
+    ).hexdigest()
+
+    if source_hash != draft["proof_content"]["source_sha256"]:
+        raise HTTPException(
+            409,
+            "Proof source hash mismatch"
+        )
+
+    # 원본 Proof 구조에서 다시 계산
+    if v11_proof_hash(draft["proof_content"]) != data.proof_hash:
+        raise HTTPException(
+            409,
+            "Proof content hash mismatch"
+        )
+
+    # 요청 전체가 기관의 서명 대상과 일치해야 한다.
+    signed_message = draft["typed_data"]["message"]
+
+    expected_message = {
+        "caseId": str(case_uint(data.case_id)),
+        "stepId": str(data.step_id),
+        "proofIdHash": (
+            "0x" + hashlib.sha256(
+                data.proof_id.encode("utf-8")
+            ).hexdigest()
+        ),
+        "proofVersion": str(data.proof_version),
+        "proofHash": data.proof_hash,
+        "occurredAt": str(data.occurred_at),
+        "issuedAt": str(data.issued_at),
+        "agency": Web3.to_checksum_address(data.agency),
+        "nonce": str(data.nonce),
+        "deadline": str(data.deadline)
+    }
+
+    if expected_message != signed_message:
+        raise HTTPException(
+            409,
+            "Signed Proof differs from verified Draft"
+        )
+
     # 1. 사건과 단계가 존재하는지 확인
     case = cases_db.get(data.case_id)
 
@@ -978,6 +1302,7 @@ def anchor_agency_proof(data: ProofAttestationSchema):
             f"On-chain Proof attestation failed: {e}"
         )
 
+    draft["status"] = "ANCHORED"
     # 6. 결과 반환
     return {
         "schema_version": "1.1",
@@ -1094,7 +1419,7 @@ def anchor_signed_proof(data: AnchorProofSchema):
 
     if data.step_id >= len(case["steps"]):
         raise HTTPException(400, "Step index out of bounds")
-    
+
     # SQLite와 현재 블록체인 사건 상태 비교
     try:
         onchain_case = contract.functions.cases(
@@ -1126,8 +1451,8 @@ def anchor_signed_proof(data: AnchorProofSchema):
 
 
 
-    
-    
+
+
     # 사건별 최신 체크포인트 자동 조회
     checkpoint_id = f"CASE_{data.case_id}_LATEST"
     checkpoint = load_latest_case_checkpoint(data.case_id)
@@ -1171,7 +1496,7 @@ def anchor_signed_proof(data: AnchorProofSchema):
         )
 
     try:
-        
+
         # 3. 전달받은 해시 형식 확인
         claim_hash = bytes.fromhex(data.claim_hash.removeprefix("0x"))
         proof_hash = bytes.fromhex(data.proof_hash.removeprefix("0x"))
@@ -1239,7 +1564,7 @@ def anchor_signed_proof(data: AnchorProofSchema):
                 {"from": sender()}
             )
         )
-        
+
         # 성공한 Proof 트랜잭션의 블록 정보 조회
         receipt = w3.eth.get_transaction_receipt(tx)
 
@@ -1252,7 +1577,7 @@ def anchor_signed_proof(data: AnchorProofSchema):
         ):
             raise ValueError("Proof transaction contract mismatch")
 
-        
+
         # 현재 수사 단계의 Proof History 개수 조회
         proof_count = contract.functions.getProofHistoryLength(
             case_uint(data.case_id),
@@ -1300,7 +1625,7 @@ def anchor_signed_proof(data: AnchorProofSchema):
             f"Proof anchoring failed: {e}"
         )
 
-    
+
     # 10. 블록체인 기록 후 로컬 API 상태 갱신
     step = case["steps"][data.step_id]
 
@@ -1623,8 +1948,8 @@ def recover_proof(
                 409, "Transaction step ID mismatch"
             )
 
-        
-        
+
+
         # 7. 실제 트랜잭션의 ProofAnchored 이벤트 추출
         events = contract.events.ProofAnchored().process_receipt(receipt)
 
@@ -1720,3 +2045,639 @@ def recover_proof(
             400,
             f"Proof recovery validation failed: {e}"
         )
+
+
+# ============================================================
+# FullProof v1.1 API integration
+# ============================================================
+
+from typing import Any, Literal
+from datetime import datetime, timezone
+from uuid import uuid4
+
+# MVP temporary stores.
+# Not persistent across server restart or multiple workers.
+V11_MAPPING_HISTORY = {}
+V11_VERIFICATION_RESULTS = {}
+
+
+def v11_now():
+    return datetime.now(timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+
+
+def v11_success(data):
+    return {
+        "success": True,
+        "data": data,
+        "error": None,
+    }
+
+
+# ------------------------------------------------------------
+# A. Claim-Proof mapping
+# ------------------------------------------------------------
+
+
+
+class V11MappingRequest(BaseModel):
+    case_id: str
+    step_id: int = Field(ge=0)
+
+    claim_version: int = Field(ge=1)
+    claim_text: str = Field(min_length=1)
+
+    proof_id: str = Field(min_length=1)
+    proof_version: int = Field(ge=1)
+
+    issuer_agency_id: str = Field(min_length=1)
+    call_id: str | None = None
+
+    mapping_method: str = "MANUAL_SELECTION"
+
+    mapping_status: Literal[
+        "PENDING",
+        "AMBIGUOUS",
+        "REJECTED"
+    ] = "PENDING"
+
+
+@app.post(
+    "/api/v1/claims/{claim_id}/proof-mappings",
+    status_code=201
+)
+def create_v11_mapping(
+    claim_id: str,
+    data: V11MappingRequest
+):
+    require_chain()
+
+    # 1. 사건 및 수사 단계 확인
+    case = cases_db.get(data.case_id)
+
+    if case is None:
+        raise HTTPException(404, "Case not found")
+
+    if case["is_closed"]:
+        raise HTTPException(409, "Case already closed")
+
+    if data.step_id >= len(case["steps"]):
+        raise HTTPException(422, "Invalid step_id")
+
+    # 2. Claim이 실제 온체인에 등록된
+    #    최신 버전인지 검증
+    claim = {
+        "case_id": data.case_id,
+        "step_id": data.step_id,
+        "claim_id": claim_id,
+        "claim_version": data.claim_version,
+        "claim_text": data.claim_text
+    }
+
+    claim_validation = validate_v11_onchain_claim(
+        claim
+    )
+
+    if claim_validation["status"] != "VALID":
+        raise HTTPException(
+            409,
+            "Claim on-chain validation failed"
+        )
+
+    # 2. 백엔드가 보관한 Proof Draft 확인
+    draft_key = (
+        data.case_id,
+        data.proof_id,
+        data.proof_version
+    )
+
+    draft = PROOF_DRAFTS.get(draft_key)
+
+    if draft is None:
+        raise HTTPException(
+            404, "Proof Draft not found"
+        )
+
+    if draft["status"] != "ANCHORED":
+        raise HTTPException(
+            409, "Proof has not been anchored"
+        )
+
+    proof = draft["proof_content"]
+
+    # 3. 기관 및 통화 식별자 일치 확인
+    if (
+        proof["case_id"] != data.case_id
+        or proof["step_id"] != data.step_id
+        or proof["issuer_agency_id"]
+           != data.issuer_agency_id
+        or proof["call_id"] != data.call_id
+    ):
+        raise HTTPException(
+            409, "Proof mapping reference mismatch"
+        )
+
+    # 4. 실제 온체인 Proof와 대조
+
+    proof_validation = validate_v11_onchain_proof(
+        proof
+    )
+
+    if proof_validation["status"] != "VALID":
+        raise HTTPException(
+            409,
+            "Proof on-chain validation failed"
+        )
+
+    # 5. 아직 인증된 담당자 확인 및
+    #    Claim 최신 버전 검증이 연결되지 않았음
+    #    따라서 CONFIRMED로 기록하지 않는다.
+    mapping = {
+    "schema_version": "1.1",
+    "mapping_id": "MAP-" + uuid4().hex,
+
+    "claim_id": claim_id,
+    "claim_version": data.claim_version,
+    "claim_hash": claim_validation["claim_hash"],
+
+    "proof_id": data.proof_id,
+    "proof_version": data.proof_version,
+    "issuer_agency_id": data.issuer_agency_id,
+    "call_id": data.call_id,
+
+    "claim_validation_status": "VALID",
+    "proof_validation_status": "VALID",
+
+    "mapping_status": data.mapping_status,
+    "mapping_method": data.mapping_method,
+
+    "confirmed_by": None,
+    "confirmed_at": None,
+    "confirmation_nonce": secrets.token_hex(16),
+    "confirmation_evidence": None,
+
+    }
+
+    key = (data.case_id, claim_id)
+    V11_MAPPING_HISTORY.setdefault(
+        key, []
+    ).append(mapping)
+
+    return v11_success(mapping)
+
+class V11MappingConfirmRequest(BaseModel):
+    case_id: str
+    claim_text: str = Field(min_length=1)
+    evidence_source_sha256: str
+    evidence_note: str = Field(min_length=10)
+    signer_address: str
+    signature: str
+
+
+def build_v11_mapping_confirmation_message(
+    case_id, mapping, claim_hash,
+    proof_hash, evidence_source_sha256,
+    evidence_note
+):
+    return "\n".join([
+        "FullProof v1.1 Mapping Confirmation",
+        f"case_id={case_id}",
+        f"mapping_id={mapping['mapping_id']}",
+        f"claim_id={mapping['claim_id']}",
+        f"claim_version={mapping['claim_version']}",
+        f"claim_hash={claim_hash}",
+        f"proof_id={mapping['proof_id']}",
+        f"proof_version={mapping['proof_version']}",
+        f"proof_hash={proof_hash}",
+        f"evidence_source_sha256={evidence_source_sha256}",
+        f"evidence_note={evidence_note}",
+        f"nonce={mapping['confirmation_nonce']}"
+    ])
+
+
+@app.post(
+    "/api/v1/claims/{claim_id}/proof-mappings/"
+    "{mapping_id}/confirm"
+)
+def confirm_v11_mapping(
+    claim_id: str,
+    mapping_id: str,
+    data: V11MappingConfirmRequest
+):
+    require_chain()
+
+    # 1. 개발 환경에서 허용된 담당자 주소 확인
+    allowed = {
+        address.strip().lower()
+        for address in os.getenv(
+            "V11_MAPPING_REVIEWERS", ""
+        ).split(",")
+        if address.strip()
+    }
+
+    if not allowed:
+        raise HTTPException(
+            503,
+            "Mapping reviewer authorization is not configured"
+        )
+
+    if data.signer_address.lower() not in allowed:
+        raise HTTPException(
+            403,
+            "Reviewer is not authorized"
+        )
+
+    # 2. 기존 매핑 찾기
+    history = V11_MAPPING_HISTORY.get(
+        (data.case_id, claim_id), []
+    )
+
+    mapping = next(
+        (
+            item for item in history
+            if item["mapping_id"] == mapping_id
+        ),
+        None
+    )
+
+    if mapping is None:
+        raise HTTPException(404, "Mapping not found")
+
+    if mapping["mapping_status"] != "PENDING":
+        raise HTTPException(
+            409, "Mapping is not pending"
+        )
+
+    case = cases_db.get(data.case_id)
+    if case is None:
+        raise HTTPException(404, "Case not found")
+    if case.get("is_closed"):
+        raise HTTPException(409, "Case is closed")
+
+    # 3. 최신 Claim 재검증
+    proof_key = (
+        data.case_id,
+        mapping["proof_id"],
+        mapping["proof_version"]
+    )
+
+    draft = PROOF_DRAFTS.get(proof_key)
+    if draft is None or draft["status"] != "ANCHORED":
+        raise HTTPException(
+            409, "Anchored Proof Draft is unavailable"
+        )
+
+    proof = draft["proof_content"]
+
+    claim = {
+        "case_id": data.case_id,
+        "step_id": proof["step_id"],
+        "claim_id": claim_id,
+        "claim_version": mapping["claim_version"],
+        "claim_text": data.claim_text
+    }
+
+    claim_result = validate_v11_onchain_claim(claim)
+    proof_result = validate_v11_onchain_proof(proof)
+
+    if (
+        claim_result["status"] != "VALID"
+        or proof_result["status"] != "VALID"
+    ):
+        raise HTTPException(
+            409, "Claim or Proof validation failed"
+        )
+
+    # 4. Proof와 매핑 식별자 재대조
+    if (
+        proof["case_id"] != data.case_id
+        or proof["proof_id"] != mapping["proof_id"]
+        or proof["proof_version"] != mapping["proof_version"]
+        or proof["issuer_agency_id"]
+           != mapping["issuer_agency_id"]
+        or proof["call_id"] != mapping["call_id"]
+    ):
+        raise HTTPException(
+            409, "Mapping reference mismatch"
+        )
+
+    # 5. 원본 증빙의 해시 검증
+    source_hash = proof["source_sha256"]
+
+    if (
+        data.evidence_source_sha256.lower()
+        != source_hash.lower()
+    ):
+        raise HTTPException(
+            409, "Evidence source hash mismatch"
+        )
+
+    # 6. 확인 내용과 서명을 연결
+    message = build_v11_mapping_confirmation_message(
+        data.case_id,
+        mapping,
+        claim_result["claim_hash"],
+        draft["proof_hash"],
+        source_hash,
+        data.evidence_note
+    )
+
+    try:
+        recovered = Account.recover_message(
+            encode_defunct(text=message),
+            signature=data.signature
+        )
+    except (ValueError, TypeError):
+        raise HTTPException(
+            400, "Invalid confirmation signature"
+        )
+
+    if recovered.lower() != data.signer_address.lower():
+        raise HTTPException(
+            403, "Confirmation signature mismatch"
+        )
+
+    # 7. 확인 이력 기록
+    from datetime import datetime, timezone
+
+    confirmed_at = datetime.now(
+        timezone.utc
+    ).isoformat()
+
+    mapping["mapping_status"] = "CONFIRMED"
+    mapping["confirmed_by"] = recovered
+    mapping["confirmed_at"] = confirmed_at
+    mapping["confirmation_evidence"] = {
+        "source_sha256": source_hash,
+        "note": data.evidence_note,
+        "signature": data.signature,
+        "claim_hash": claim_result["claim_hash"],
+        "proof_hash": draft["proof_hash"]
+    }
+
+    return v11_success(mapping)
+
+
+# ------------------------------------------------------------
+# B. Verification
+# ------------------------------------------------------------
+
+class V11VerificationRequest(BaseModel):
+    claim: dict[str, Any]
+    proofs: list[dict[str, Any]] = Field(
+        default_factory=list
+    )
+
+
+@app.post("/api/v1/verifications", status_code=201)
+def create_v11_verification(
+    data: V11VerificationRequest
+):
+    claim = data.claim
+
+    try:
+        case_id = claim["case_id"]
+        claim_id = claim["claim_id"]
+        step_id = claim["step_id"]
+    except (KeyError, TypeError):
+        raise HTTPException(
+            422, "Missing Claim reference"
+        )
+
+    case = cases_db.get(case_id)
+
+    if case is None:
+        raise HTTPException(404, "Case not found")
+
+    if case["is_closed"]:
+        raise HTTPException(409, "Case already closed")
+
+    if type(step_id) is not int or (
+        step_id < 0 or step_id >= len(case["steps"])
+    ):
+        raise HTTPException(422, "Invalid step_id")
+
+    for proof in data.proofs:
+        if (
+            proof.get("case_id") != case_id
+            or proof.get("step_id") != step_id
+        ):
+            raise HTTPException(
+                422, "Proof case or step mismatch"
+            )
+
+    # Mapping records are NOT automatically trusted.
+    # The backend has not yet authenticated a human
+    # confirmer or independently assessed link evidence.
+    history = V11_MAPPING_HISTORY.get(
+        (case_id, claim_id), []
+    )
+
+    safe_mappings = []
+
+    for mapping in history:
+        safe_mapping = dict(mapping)
+        safe_mapping[
+            "mapping_evidence_sufficient"
+        ] = False
+        safe_mappings.append(safe_mapping)
+
+    validated_inputs = {
+        "claim": claim,
+        "proofs": data.proofs,
+        "mappings": safe_mappings,
+        # Never take this from the request.
+        "proof_validation": {},
+    }
+
+    # The existing function validates Claim/Proof on-chain
+    # and reconstructs proof_validation internally.
+    result = process_v11_verification(validated_inputs)
+
+    verification_id = result.get("verification_id")
+
+    if verification_id:
+        V11_VERIFICATION_RESULTS[
+            verification_id
+        ] = result
+
+    return v11_success(result)
+
+
+# ------------------------------------------------------------
+# C. Administrator review request validation
+# ------------------------------------------------------------
+
+class V11ReviewRequest(BaseModel):
+    review_status: Literal[
+        "ACKNOWLEDGED",
+        "ACCEPTED",
+        "REVISION_REQUESTED"
+    ]
+    reason_code: str | None = None
+    reason_text: str = ""
+
+
+@app.post(
+    "/api/v1/verifications/{verification_id}/reviews"
+)
+
+def create_v11_review(
+    verification_id: str,
+    data: V11ReviewRequest
+):
+    from uuid import uuid4
+    from datetime import datetime, timezone
+
+
+    # v1.1: 요청자 인증 연동 전 관리자 승인 차단
+    raise HTTPException(
+        status_code=503,
+        detail="Administrator authentication is not configured"
+    )
+
+    require_chain()
+
+    verification = V11_VERIFICATION_RESULTS.get(
+        verification_id
+    )
+
+    if verification is None:
+        raise HTTPException(
+            404,
+            "Verification not found"
+        )
+
+    if verification.get("processing_status") != "COMPLETED":
+        raise HTTPException(
+            409,
+            "Verification is not completed"
+        )
+
+    verdict = verification.get("verdict")
+
+    if (
+        data.review_status == "ACCEPTED"
+        and verdict != "SUPPORTED"
+    ):
+        raise HTTPException(
+            409,
+            "Only SUPPORTED verification can be accepted"
+        )
+
+    # v1.1 관리자 상태 -> Solidity Enum
+    action_map = {
+        "ACCEPTED": 1,             # APPROVE
+        "ACKNOWLEDGED": 2,         # CONFIRM
+        "REVISION_REQUESTED": 3   # REQUEST_CHANGES
+    }
+
+    action = action_map[data.review_status]
+
+    case_id = verification["case_id"]
+    step_id = verification["step_id"]
+    verification_hash = verification["verification_hash"]
+
+    verification_id_hash = (
+        "0x" + hashlib.sha256(
+            verification_id.encode("utf-8")
+        ).hexdigest()
+    )
+
+    # 로컬 Hardhat MVP 관리자 계정
+    accounts = w3.eth.accounts
+
+    if not accounts:
+        raise HTTPException(
+            503,
+            "No available blockchain accounts"
+        )
+
+    admin = accounts[0]
+
+    # 관리자 권한은 Solidity onlyAdmin에서 강제한다.
+    # 트랜잭션 제출 전에 사전 검증도 수행한다.
+    try:
+        contract.functions.recordVerificationReview(
+            case_uint(case_id),
+            step_id,
+            verification_id_hash,
+            verification_hash,
+            action
+        ).call({"from": admin})
+
+        tx = contract.functions.recordVerificationReview(
+            case_uint(case_id),
+            step_id,
+            verification_id_hash,
+            verification_hash,
+            action
+        ).transact({"from": admin})
+
+        receipt = w3.eth.wait_for_transaction_receipt(
+            tx,
+            timeout=120
+        )
+
+        if receipt.status != 1:
+            raise HTTPException(
+                409,
+                "Administrator review transaction failed"
+            )
+
+        # 기록 확인: 해당 트랜잭션의 이벤트를 검증한다.
+        events = (
+            contract.events.VerificationReviewAnchored()
+            .process_receipt(receipt)
+        )
+
+        expected_event = any(
+            event["args"]["caseId"] == case_uint(case_id)
+            and event["args"]["stepId"] == step_id
+            and Web3.to_hex(
+                event["args"]["verificationIdHash"]
+            ).lower() == verification_id_hash.lower()
+            and Web3.to_hex(
+                event["args"]["verificationHash"]
+            ).lower() == verification_hash.lower()
+            and int(event["args"]["action"]) == action
+            and event["args"]["reviewer"].lower() == admin.lower()
+            for event in events
+        )
+
+        if not expected_event:
+            raise HTTPException(
+                409,
+                "Administrator review event mismatch"
+            )
+
+    except HTTPException:
+        raise
+
+    except Exception as exc:
+        raise HTTPException(
+            409,
+            f"Administrator review rejected: {exc}"
+        )
+
+    review = {
+        "schema_version": "1.1",
+        "review_id": "REVIEW-" + uuid4().hex,
+        "case_id": case_id,
+        "step_id": step_id,
+        "verification_id": verification_id,
+        "verification_hash": verification_hash,
+        "review_status": data.review_status,
+        "reviewer_id": admin,
+        "reviewed_at": datetime.now(
+            timezone.utc
+        ).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "reason_code": data.reason_code,
+        "reason_text": data.reason_text
+    }
+
+    review["review_hash"] = v11_sha256(review)
+    review["review_tx_hash"] = tx.hex()
+
+    return v11_success(review)
