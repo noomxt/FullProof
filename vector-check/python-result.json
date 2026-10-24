@@ -8,6 +8,13 @@
     "proof_id": true,
     "proof_version": true,
     "occurred_at": true,
-    "issued_at": true
+    "issued_at": true,
+    "claim_utf8": true,
+    "verification-SUPPORTED": true,
+    "verification-CONTRADICTED": true,
+    "verification-INSUFFICIENT": true,
+    "policy": true,
+    "empty-proof-refs": true,
+    "proof-key-order": true
   }
 }

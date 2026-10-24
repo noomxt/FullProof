@@ -24,6 +24,11 @@ checks = dict(proof_hash=proof_hash == m['proofHash'], digest=digest == v['expec
               occurred_at=str(int(datetime.fromisoformat(p['proof_occurred_at']).timestamp())) == m['occurredAt'],
               issued_at=str(int(datetime.fromisoformat(p['proof_issued_at']).timestamp())) == m['issuedAt'])
 result = dict(proof_hash=proof_hash, digest=digest, checks=checks)
+if (ROOT / 'common-v11.json').exists():
+    common = json.loads((ROOT / 'common-v11.json').read_text(encoding='utf-8'))
+    checks['claim_utf8'] = h(common['claim_text'].encode()) == common['claim_hash']
+    for row in common['jcs_checks']:
+        checks[row['name']] = h(rfc8785.dumps(row['content'])) == row['expected_hash']
 (ROOT / 'python-result.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
 print(json.dumps(result, indent=2))
 assert all(checks.values()), checks

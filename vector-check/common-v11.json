@@ -1,0 +1,156 @@
+{
+  "mock_input": true,
+  "claim_text": "  2026년 10월 18일 오후 2시 SUBJECT-01 통화 성공.\r\n",
+  "claim_hash": "0xdde52ee412270121cc9a93a478a8c412f2666a5a31320f70b4441d2ce8c7c059",
+  "jcs_checks": [
+    {
+      "name": "verification-SUPPORTED",
+      "content": {
+        "schema_version": "1.1",
+        "verification_id": "VERIFY-CONTRACT-SUPPORTED",
+        "case_id": "CASE-001",
+        "step_id": 0,
+        "claim_ref": {
+          "claim_id": "CLAIM-CONTRACT",
+          "claim_version": 1,
+          "claim_hash": "0xdde52ee412270121cc9a93a478a8c412f2666a5a31320f70b4441d2ce8c7c059"
+        },
+        "proof_refs": [
+          {
+            "proof_id": "PROOF-001",
+            "proof_version": 1,
+            "proof_hash": "0xd9491d4f357151184e95ba4f4044686cb93b88daaa62cd6d443614b236ca793b"
+          }
+        ],
+        "processing_status": "COMPLETED",
+        "verdict": "SUPPORTED",
+        "conflicts": [],
+        "missing_information": [],
+        "reason_text": "기관 Proof가 필수 비교 조건과 주장을 뒷받침합니다.",
+        "evidence_refs": [
+          "PROOF-001"
+        ],
+        "review_required": false,
+        "decision_policy_version": "policy-v1",
+        "policy_hash": "0x7f1088c36dc3ce97d3a67991e76b7fc3a3b0e48b1ef1eaaf5e6477af88268976",
+        "proof_refs_hash": "0x4acbda97d56bad11a8a0a369358b08a0f74eed10b66fd8180cb2a381a6361c7d"
+      },
+      "expected_hash": "0xffac337892fcc2a60e574835507f93308ed52bd2d44ddb66ae0b70b64658777f"
+    },
+    {
+      "name": "verification-CONTRADICTED",
+      "content": {
+        "schema_version": "1.1",
+        "verification_id": "VERIFY-CONTRACT-CONTRADICTED",
+        "case_id": "CASE-001",
+        "step_id": 0,
+        "claim_ref": {
+          "claim_id": "CLAIM-CONTRACT",
+          "claim_version": 1,
+          "claim_hash": "0xdde52ee412270121cc9a93a478a8c412f2666a5a31320f70b4441d2ce8c7c059"
+        },
+        "proof_refs": [
+          {
+            "proof_id": "PROOF-001",
+            "proof_version": 1,
+            "proof_hash": "0xc408caabdbdfcb3ffe71c6fc88fdf5f66b73df8ec7b2cba580f25baa14d44d7b"
+          }
+        ],
+        "processing_status": "COMPLETED",
+        "verdict": "CONTRADICTED",
+        "conflicts": [
+          {
+            "field": "action_result",
+            "claim_value": "SUCCESS",
+            "proof_value": "FAIL",
+            "reason_code": "RESULT_MISMATCH"
+          }
+        ],
+        "missing_information": [],
+        "reason_text": "연결이 확인된 유효 Proof와 주장 사이에 충돌이 있습니다.",
+        "evidence_refs": [
+          "PROOF-001"
+        ],
+        "review_required": true,
+        "decision_policy_version": "policy-v1",
+        "policy_hash": "0x7f1088c36dc3ce97d3a67991e76b7fc3a3b0e48b1ef1eaaf5e6477af88268976",
+        "proof_refs_hash": "0xab488a4e892645ea07bff91b1d8d4451f58ebd4300b3762260c6a0b8cad64ab1"
+      },
+      "expected_hash": "0x82ae9b31a2834d2900c8cb6865b524c3620045e3632751ee9e688662fc104273"
+    },
+    {
+      "name": "verification-INSUFFICIENT",
+      "content": {
+        "schema_version": "1.1",
+        "verification_id": "VERIFY-CONTRACT-INSUFFICIENT",
+        "case_id": "CASE-001",
+        "step_id": 0,
+        "claim_ref": {
+          "claim_id": "CLAIM-CONTRACT",
+          "claim_version": 1,
+          "claim_hash": "0xdde52ee412270121cc9a93a478a8c412f2666a5a31320f70b4441d2ce8c7c059"
+        },
+        "proof_refs": [],
+        "processing_status": "COMPLETED",
+        "verdict": "INSUFFICIENT",
+        "conflicts": [],
+        "missing_information": [
+          "PROOF_MISSING"
+        ],
+        "reason_text": "필수 정보 또는 유효한 연결 근거가 부족합니다.",
+        "evidence_refs": [],
+        "review_required": true,
+        "decision_policy_version": "policy-v1",
+        "policy_hash": "0x7f1088c36dc3ce97d3a67991e76b7fc3a3b0e48b1ef1eaaf5e6477af88268976",
+        "proof_refs_hash": "0x5ffbb1e7a6f371aff91971df528a7cc7cd1503e6460e51e1d863a3d9958cbb2f"
+      },
+      "expected_hash": "0x8c6da54aa241bbee74626bb940134622d1275865134989782ad6cd69ae372b0a"
+    },
+    {
+      "name": "policy",
+      "content": {
+        "schema_version": "1.1",
+        "policy_id": "CALL_VERIFICATION",
+        "policy_version": "policy-v1",
+        "required_fields": [
+          "action_result",
+          "action_type",
+          "target_id"
+        ],
+        "time_tolerance_seconds": 600,
+        "proof_mapping_required": true,
+        "semantic_analysis_required": false
+      },
+      "expected_hash": "0x7f1088c36dc3ce97d3a67991e76b7fc3a3b0e48b1ef1eaaf5e6477af88268976"
+    },
+    {
+      "name": "empty-proof-refs",
+      "content": {
+        "schema_version": "1.1",
+        "proof_refs": []
+      },
+      "expected_hash": "0x5ffbb1e7a6f371aff91971df528a7cc7cd1503e6460e51e1d863a3d9958cbb2f"
+    },
+    {
+      "name": "proof-key-order",
+      "content": {
+        "source_sha256": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "result": "CALL_CONNECTED",
+        "proof_issued_at": "2026-10-18T05:30:00Z",
+        "proof_occurred_at": "2026-10-18T05:00:00Z",
+        "action_type": "PHONE_CALL",
+        "target_id": "SUBJECT-01",
+        "call_id": "CALL-001",
+        "proof_type": "CALL_LOG",
+        "agency_address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "issuer_agency_id": "TELECOM-001",
+        "step_id": 0,
+        "case_id": "CASE-001",
+        "proof_version": 1,
+        "proof_id": "PROOF-001",
+        "schema_version": "1.1"
+      },
+      "expected_hash": "0xd9491d4f357151184e95ba4f4044686cb93b88daaa62cd6d443614b236ca793b"
+    }
+  ]
+}

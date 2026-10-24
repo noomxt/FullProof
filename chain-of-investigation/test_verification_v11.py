@@ -17,7 +17,8 @@ class VerificationTests(unittest.TestCase):
         self.claim = dict(schema_version='1.1', case_id='CASE-001', step_id=0,
                           claim_id='CLAIM-001', claim_version=1, claim_text=text,
                           claim_hash='0x' + sha256(text.encode()).hexdigest(),
-                          structured_claim=dict(claim_id='CLAIM-001', claim_version=1, extraction_status='COMPLETED',
+                          structured_claim=dict(schema_version='1.1', claim_id='CLAIM-001', claim_version=1, extraction_status='COMPLETED',
+                            model_name='offline-fixture', prompt_version='fixture-v1', review_required=False,
                             actions=[dict(action_type='PHONE_CALL', action_result='SUCCESS', target_id='SUBJECT-01',
                                           occurred_at='2026-10-18T05:00:00Z', source_excerpt=text)]))
         self.proof = dict(schema_version='1.1', proof_id='PROOF-001', proof_version=1, case_id='CASE-001', step_id=0,

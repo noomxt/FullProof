@@ -14,6 +14,20 @@
 
 ## 기존 FastAPI에 연결
 
+AI 담당 전체 규격별 근거는 `AI-v1.1-규격대조표.md`에 기록합니다.
+공식 추출 API는 `register_v11_extraction_route`로 별도 연결합니다.
+
+```python
+from verification_v11 import register_v11_extraction_route, register_v11_routes
+register_v11_extraction_route(app, resolver=resolve_stored_claim)
+register_v11_routes(app, resolver=resolve_verification_inputs)
+```
+
+resolve_stored_claim(request, claim_id, body)는 인증/권한 검사 후 이미 저장·고정된
+Claim의 해당 버전을 반환합니다. body 자체를 Claim으로 사용하지 마세요.
+추출 결과 저장과 실패 이력 저장은 백엔드 책임입니다.
+동일 경로가 이미 있으면 중복 등록하지 말고 기존 핸들러에서 extract_v11/verify_v11을 호출합니다.
+
 ### B안 ProofAttestation 검토 결과
 
 팀 공유 기준은 Domain `FullProof` / version `2`, primaryType `ProofAttestation`입니다.
@@ -97,9 +111,10 @@ AI 응답 스키마는 `ClaimExtractionV11`이며 행동 필드는 `action_type`
 기본 `+09:00` 해석과 함께 사용합니다. v1.1 소비자는 `extract_v11()`을 사용합니다.
 원문은 수정하지 않으며, 새 Claim이나 call_id를 생성하지 않습니다.
 
-`model_name`은 실제 요청에 지정한 모델 ID, `prompt_version`은
+`model_name`은 공급자 응답에 명시된 모델 ID(없으면 실제 요청 ID), `prompt_version`은
 `extract-v1.1-prompt-v2`입니다. API 호출 전 실패는 `model_name=null`입니다.
 메타데이터가 없는 구버전 추출 결과를 주입하면 해당 값은 null로 유지합니다.
+v1.1 최종 판정에서는 메타데이터 누락을 거부하므로 구버전 추출 결과는 재추출해야 합니다.
 오프라인 테스트는 출력 계약과 호환성을 검증하며 실제 Gemini 추출 정확도를 보장하지 않습니다.
 
 ```text
@@ -107,15 +122,18 @@ python -m pip install -r requirements-v11.txt
 python -m unittest test_verification_v11 test_conflict_sort
 ```
 
-전체 회귀 테스트 85개 통과(HTTP 인프로세스 연동 포함). `python run_checks.py`로
+전체 회귀 테스트는 `python run_checks.py`로
 전체 테스트를 실행합니다. 실행기는 45초 초과 시 스택을 출력하고 실패로 종료합니다.
+이번 전체 점검 결과는 단위/HTTP 102개, 파서 자체 검사 10개 통과입니다.
+실제 Gemini 합성 입력 10건도 모두 통과했으며, 서비스 503이 발생한 건은 재시도 후 확인했습니다.
 Windows 제한 실행 환경에서는 TestClient가 API 호출 전 내부 socketpair 초기화에서
 정지할 수 있습니다. 이번 환경에서는 동일 테스트를 실행 제한 밖에서 돌려 정상 완료를
 확인했습니다. 운영 API 코드를 변경하거나 테스트를 생략해서 해결한 것은 아닙니다.
 
 v1.1 HTTP 테스트는 공식 RFC8785 해시, 세 판정의 200 응답, 잘못된 해시·사건 참조·시각 및
 깨진 JSON의 422 공통 오류 응답, resolver 미설정 시 503 응답을 확인합니다.
-실제 외부 AI·기관 서명·Hardhat End-to-End 검증은 별도 필요합니다.
+실제 외부 AI 결과는 acceptance/live-gemini.json에 기록합니다.
+실제 기관 서명·Hardhat End-to-End 검증은 별도 필요합니다.
 computed fixture는 실제 기관 자료가 아니며 검증 완료를 가정한 가상 데이터입니다.
 
 전체 필드·제약은 docs/verification-v1.1/Verification-v1.1-전달용.md를 참고하세요.

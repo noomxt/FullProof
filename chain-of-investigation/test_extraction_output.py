@@ -80,6 +80,18 @@ class ExtractionOutputTests(unittest.TestCase):
         self.assertEqual(result['model_name'], 'request-model')
         self.assertEqual(result['prompt_version'], PROMPT_VERSION)
 
+    def test_provider_service_failure_keeps_no_invented_actions(self):
+        from ai_provider import error_code
+        self.assertEqual(error_code(SimpleNamespace(status_code=503)), 'AI_SERVICE_UNAVAILABLE')
+
+    def test_provider_reported_model_is_preserved(self):
+        def parse(**kwargs):
+            return SimpleNamespace(model='provider-resolved-model', choices=[SimpleNamespace(
+                message=SimpleNamespace(parsed=self.payload, refusal=None))])
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(parse=parse)))
+        result = parse_claim_with_llm(self.text, client=client)
+        self.assertEqual(result['model_name'], 'provider-resolved-model')
+
 
 if __name__ == '__main__':
     unittest.main()

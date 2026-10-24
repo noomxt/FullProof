@@ -26,6 +26,8 @@ def error_code(exc):
         return "AI_AUTH_ERROR"
     if status == 429:
         return "AI_RATE_LIMIT_OR_QUOTA"
+    if status in (502, 503, 504):
+        return "AI_SERVICE_UNAVAILABLE"
     if status == 404:
         return "AI_MODEL_NOT_FOUND"
     if status == 400:

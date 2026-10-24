@@ -15,7 +15,7 @@ from datetime import datetime, timezone, timedelta
 import re
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, Field
 
 # UNKNOWN is a review fallback, never an inferred supported action.
 ActionType = Literal['PHONE_CALL', 'CCTV_REQUEST', 'CCTV_REVIEW', 'LOCATION_REQUEST', 'UNKNOWN']
@@ -69,6 +69,18 @@ class ClaimActionV11(StrictModel):
 class ClaimExtractionV11(StrictModel):
     actions: list[ClaimActionV11]
     review_reasons: list[str]
+
+
+class StructuredClaimV11(StrictModel):
+    """Public section 4.2 envelope; provider response is an internal schema."""
+    schema_version: Literal['1.1']
+    claim_id: str = Field(min_length=1)
+    claim_version: int = Field(ge=1)
+    extraction_status: Literal['PENDING', 'COMPLETED', 'NEEDS_REVIEW', 'FAILED']
+    actions: list[ClaimActionV11]
+    model_name: str | None
+    prompt_version: str | None
+    review_required: bool
 
 
 class ProofSchema(StrictModel):
@@ -212,7 +224,9 @@ def parse_claim_with_llm(raw_claim_text: str, *, client=None) -> dict:
         if message.parsed is None:
             return _failure(raw_claim_text, 'AI_RESPONSE_INVALID', model=selected_model)
         result = _finalize(raw_claim_text, _legacy_extraction(message.parsed))
-        result.update(model_name=selected_model, prompt_version=PROMPT_VERSION)
+        reported_model = getattr(completion, 'model', None)
+        result.update(model_name=reported_model if isinstance(reported_model, str) and reported_model.strip()
+                      else selected_model, prompt_version=PROMPT_VERSION)
         return result
     except (ValidationError, ValueError, AttributeError, IndexError, TypeError):
         return _failure(raw_claim_text, 'AI_RESPONSE_INVALID', model=locals().get('selected_model'))

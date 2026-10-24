@@ -17,6 +17,14 @@ const checks = {
   issued_at: String(Date.parse(p.proof_issued_at)/1000) === m.issuedAt
 };
 const result = {proof_hash: proofHash, digest, checks};
+const commonPath = path.join(__dirname, 'common-v11.json');
+if (fs.existsSync(commonPath)) {
+  const common = JSON.parse(fs.readFileSync(commonPath, 'utf8'));
+  checks.claim_utf8 = sha256(toUtf8Bytes(common.claim_text)) === common.claim_hash;
+  for (const row of common.jcs_checks) {
+    checks[row.name] = sha256(toUtf8Bytes(canonicalize(row.content))) === row.expected_hash;
+  }
+}
 fs.writeFileSync(path.join(__dirname, 'javascript-result.json'), JSON.stringify(result, null, 2));
 console.log(JSON.stringify(result, null, 2));
 if (!Object.values(checks).every(Boolean)) process.exitCode = 1;
