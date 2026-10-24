@@ -918,6 +918,32 @@ class RecoverProofSchema(BaseModel):
 
 class CloseCaseSchema(BaseModel):
     reason: str = "수사 완료"
+    
+# FullProof v1.1 - 관리자 서명 기반 사건 종결
+class V11SignedCloseCaseSchema(CloseCaseSchema):
+    signer_address: str
+    signature: str
+    nonce: str = Field(min_length=16)
+    deadline: int = Field(gt=0)
+
+
+V11_USED_CLOSE_NONCES = set()
+
+
+def build_v11_close_message(case_id, data):
+    payload = {
+        "purpose": "FullProof v1.1 Case Closure",
+        "chain_id": w3.eth.chain_id,
+        "contract_address": contract.address,
+        "case_id": case_id,
+        "reason": data.reason,
+        "signer_address": data.signer_address,
+        "nonce": data.nonce,
+        "deadline": data.deadline
+    }
+
+    return rfc8785.dumps(payload).decode("utf-8")
+
 
 
 @app.get("/api/v1/cases/{case_id}/chain-status")
@@ -1761,25 +1787,160 @@ def get_family_progress(case_id: str):
     if case_id not in cases_db:
         raise HTTPException(404, "Case not found")
     return get_family_progress_from_backend(case_id)
-
+    
 @app.post("/api/v1/cases/{case_id}/close")
-def close_case_endpoint(case_id: str, body: CloseCaseSchema):
+def close_case_endpoint(
+    case_id: str,
+    body: V11SignedCloseCaseSchema
+):
     require_chain()
+
+    # 1. 사건 확인
     case = cases_db.get(case_id)
-    if not case:
+
+    if case is None:
         raise HTTPException(404, "Case not found")
+
     if case["is_closed"]:
-        raise HTTPException(400, "Case is already closed")
+        raise HTTPException(409, "Case is already closed")
+
+    if not body.reason.strip():
+        raise HTTPException(422, "Close reason is empty")
+
+    # 2. 서명 유효기간 확인
+    block_time = w3.eth.get_block(
+        "latest"
+    )["timestamp"]
+
+    if body.deadline <= block_time:
+        raise HTTPException(
+            403, "Case closure signature expired"
+        )
+
+    # 3. nonce 재사용 확인
+    nonce_key = (
+        body.signer_address.lower(),
+        body.nonce
+    )
+
+    if nonce_key in V11_USED_CLOSE_NONCES:
+        raise HTTPException(
+            409, "Case closure nonce already used"
+        )
+
+    # 4. 사건 종결 요청 전자서명 검증
+    message = build_v11_close_message(
+        case_id,
+        body
+    )
+
     try:
-        tx = confirmed(contract.functions.closeCase(case_uint(case_id), body.reason).transact({"from": sender()}))
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(400, f"On-chain closeCase failed: {e}")
+        recovered = Account.recover_message(
+            encode_defunct(text=message),
+            signature=body.signature
+        )
+    except (ValueError, TypeError, BadSignature):
+        raise HTTPException(
+            403, "Invalid case closure signature"
+        )
+
+    if (
+        recovered.lower()
+        != body.signer_address.lower()
+    ):
+        raise HTTPException(
+            403, "Case closure signature mismatch"
+        )
+
+    # 5. 실제 컨트랙트 관리자 여부 확인
+    onchain_admin = (
+        contract.functions.admin().call()
+    )
+
+    if recovered.lower() != onchain_admin.lower():
+        raise HTTPException(
+            403, "Signer is not contract administrator"
+        )
+
+    # 6. Solidity 종결 조건 사전 검사
+    # 실제 종결은 Solidity가 최종 결정한다.
+    try:
+        close_function = contract.functions.closeCase(
+            case_uint(case_id),
+            body.reason
+        )
+
+        close_function.call({"from": recovered})
+
+    except Exception as exc:
+        raise HTTPException(
+            409,
+            f"Case closure conditions not met: {exc}"
+        )
+
+    # 7. 온체인 사건 종결
+    try:
+        tx_hash = close_function.transact({
+            "from": recovered
+        })
+
+        receipt = w3.eth.wait_for_transaction_receipt(
+            tx_hash,
+            timeout=120
+        )
+
+    except Exception as exc:
+        # 제출 또는 확인 과정의 실패 여부가 불명확하면
+        # 사건을 종결 상태로 저장하지 않는다.
+        raise HTTPException(
+            503,
+            f"Case closure transaction unconfirmed: {exc}"
+        )
+
+    if receipt.status != 1:
+        raise HTTPException(
+            409, "Case closure transaction reverted"
+        )
+
+    # 8. CaseClosed 이벤트 확인
+    events = (
+        contract.events.CaseClosed()
+        .process_receipt(receipt)
+    )
+
+    matched = any(
+        event["args"]["caseId"] == case_uint(case_id)
+        and event["args"]["reason"] == body.reason
+        and event["args"]["closer"].lower()
+            == recovered.lower()
+        for event in events
+    )
+
+    if not matched:
+        raise HTTPException(
+            409,
+            "Case closure transaction succeeded "
+            "but CaseClosed event was not verified"
+        )
+
+    # 9. 확인된 종결 결과만 백엔드에 반영
+    V11_USED_CLOSE_NONCES.add(nonce_key)
+
     case["is_closed"] = True
     case["close_reason"] = body.reason
+
     save_case(case)
-    return {"status": "SUCCESS", "message": f"Case {case_id} closed successfully", "tx_hash": tx}
+
+    return {
+        "schema_version": "1.1",
+        "status": "SUCCESS",
+        "case_id": case_id,
+        "close_reason": body.reason,
+        "closed_by": recovered,
+        "tx_hash": tx_hash.hex(),
+        "chain_status": "CONFIRMED"
+    }
+
 
 
 @app.get("/api/v1/blockchain/checkpoints/{checkpoint_id}")
