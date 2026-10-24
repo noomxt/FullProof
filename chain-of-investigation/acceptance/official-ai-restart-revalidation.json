@@ -1,0 +1,132 @@
+{
+  "chain_id": 31337,
+  "contract": "0xAA292E8611aDF267e563f334Ee42320aC96D0463",
+  "live_ai": false,
+  "scenarios": [
+    {
+      "case": "AI-INTEGRATION-ef54a9456b47",
+      "verdict": "INSUFFICIENT",
+      "verification_hash": "0x52d57fc41a4880648ba242e8f703fd711af6734779f3f6dae4f3434ca9e73cc4",
+      "tx_hash": "d3922052c2c8c7d846c58e6f0c6e1b5a3fdc382a54e4636df10ccb9552b5877b",
+      "block_number": 128,
+      "restart_revalidation": {
+        "case_id": "AI-INTEGRATION-ef54a9456b47",
+        "verdict": "INSUFFICIENT",
+        "original_verification": "VERIFY-a6132b0e-51aa-4b85-a3c1-d90d85634158",
+        "new_verification": "VERIFY-3c48b9b8-cab9-434f-96b2-ae2821729fe9",
+        "extraction_preserved": true,
+        "prior_history_preserved": true,
+        "claim_ref": {
+          "claim_id": "CLAIM-AI-INTEGRATION-ef54a9456b47",
+          "claim_version": 1,
+          "claim_hash": "0xe58e6a73d1ffa47ba9df7f2e5499b7e2ed1f4fb054d001e487f3ca962eb3c316"
+        },
+        "proof_refs": [
+          {
+            "proof_id": "PROOF-001",
+            "proof_version": 1,
+            "proof_hash": "0x5450ff49ba963f66acdadcd0ff8e8de9eb28a239f771cdd42740f07af490770c"
+          }
+        ],
+        "verification_tx_hash": "e36ccae66df27a5cd6305f350ac61488ea04f3aa159e4d83ec73260117012a2f",
+        "receipt_status": 1
+      }
+    },
+    {
+      "case": "AI-INTEGRATION-fafcf94284c0",
+      "verdict": "CONTRADICTED",
+      "verification_hash": "0x1899898a6daffd36fe63b6e0d4a8d94d341d1b1d022d92ddb5028e7934c87650",
+      "tx_hash": "d629c0cb0d7babe5b7b31b3a5f2ea8f9bcd526b7a7576de4f64884c72c88b80a",
+      "block_number": 134,
+      "restart_revalidation": {
+        "case_id": "AI-INTEGRATION-fafcf94284c0",
+        "verdict": "CONTRADICTED",
+        "original_verification": "VERIFY-19d636dd-8ed1-4f47-baef-e294dcce6689",
+        "new_verification": "VERIFY-deb24b08-abff-461e-9679-fab31b7d217e",
+        "extraction_preserved": true,
+        "prior_history_preserved": true,
+        "claim_ref": {
+          "claim_id": "CLAIM-AI-INTEGRATION-fafcf94284c0",
+          "claim_version": 1,
+          "claim_hash": "0x1f8377444d6a402a9f4ae83f73058b28e3d9ffff47a106a4e8589502bcea6393"
+        },
+        "proof_refs": [
+          {
+            "proof_id": "PROOF-001",
+            "proof_version": 1,
+            "proof_hash": "0x0e7bdab1144f29aaade26b714bb735b56bf27d6a267854d8c1ee8d07a4b03b94"
+          }
+        ],
+        "verification_tx_hash": "f10afc321d76eac6c920ea2410d13f134a41cbe9206763eca53138cc2cd31baf",
+        "receipt_status": 1
+      }
+    },
+    {
+      "case_id": "AI-INTEGRATION-8740ad9bc4ac",
+      "first_extraction_after_restart": true,
+      "original_bytes_preserved": true,
+      "verdict": "INSUFFICIENT"
+    },
+    {
+      "case": "AI-INTEGRATION-7840098a5d3a",
+      "verdict": "INSUFFICIENT",
+      "verification_hash": "0xc4be88c0df54945a3d0b035ecc2b657c144ed5e966fe3470ad7d605c3967c40b",
+      "tx_hash": "8810a8044af2764f62a6bbf322f9a8b6b0a144db9f08c16b4f9fa918c4f465a1",
+      "block_number": 143,
+      "restart_revalidation": {
+        "case_id": "AI-INTEGRATION-7840098a5d3a",
+        "verdict": "INSUFFICIENT",
+        "original_verification": "VERIFY-ccea1a81-fc09-4e6e-90f4-dc2ef495a204",
+        "new_verification": "VERIFY-4227faca-fec3-4619-98a4-77d6537b8e54",
+        "extraction_preserved": true,
+        "prior_history_preserved": true,
+        "claim_ref": {
+          "claim_id": "CLAIM-AI-INTEGRATION-7840098a5d3a",
+          "claim_version": 1,
+          "claim_hash": "0x96af9076900d039e4d8d001329ad7ec8b471e3f6292142fad762ebc2391f3522"
+        },
+        "proof_refs": [],
+        "verification_tx_hash": "a4bdecffb34007686c8b32526b715e3a35e02778d2650f36882c3f4f13199f32",
+        "receipt_status": 1
+      }
+    },
+    {
+      "case": "AI-INTEGRATION-11b4be8559b8",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0xbb4a505b58daa492dd594ad0ff63d45356fa5f19fe70626993c706b1c6321932",
+      "tx_hash": "2b0c5524743355e33b0bb31c4802bad6bef3a4b513ef44c03bcd8c0cd1f84ff7",
+      "block_number": 149,
+      "restart_revalidation": {
+        "case_id": "AI-INTEGRATION-11b4be8559b8",
+        "verdict": "SUPPORTED",
+        "original_verification": "VERIFY-030a73f1-474e-47d9-b40a-ea7f23cc0cce",
+        "new_verification": "VERIFY-5e4df007-05c9-4783-a019-7c746f69327e",
+        "extraction_preserved": true,
+        "prior_history_preserved": true,
+        "claim_ref": {
+          "claim_id": "CLAIM-AI-INTEGRATION-11b4be8559b8",
+          "claim_version": 1,
+          "claim_hash": "0xd4819b539086e8caebc3a362466c83937be7236d6dc3684a5e6182f1575e395f"
+        },
+        "proof_refs": [
+          {
+            "proof_id": "PROOF-001",
+            "proof_version": 1,
+            "proof_hash": "0x0d2a4562af38dd3ad127400372a1725a8e11122725e138716f19395e983a56c8"
+          }
+        ],
+        "verification_tx_hash": "387057a47ac554c936ad12a9906daf8f2afd7331b42f5c45f79e3900d3f22536",
+        "receipt_status": 1
+      }
+    }
+  ],
+  "extractions": [],
+  "executed_tests": [
+    "test_ai_restart_revalidation.RestartRevalidationTests.test_confirmed_but_no_call_ref_after_restart",
+    "test_ai_restart_revalidation.RestartRevalidationTests.test_contradicted_after_restart",
+    "test_ai_restart_revalidation.RestartRevalidationTests.test_first_extraction_of_restored_claim",
+    "test_ai_restart_revalidation.RestartRevalidationTests.test_no_proof_after_restart",
+    "test_ai_restart_revalidation.RestartRevalidationTests.test_supported_after_restart"
+  ],
+  "failed_tests": []
+}

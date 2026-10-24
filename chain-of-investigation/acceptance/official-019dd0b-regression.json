@@ -1,0 +1,138 @@
+{
+  "chain_id": 31337,
+  "contract": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+  "live_ai": false,
+  "scenarios": [
+    {
+      "case": "AI-INTEGRATION-fdc989ef45a3",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0x49543a9bf3819b74358d22a0f470e681748a1fd4ed3a4c730a926114b4005a46",
+      "tx_hash": "5f0cc1788d68bdd56e96f0c6ab948ce472982aa5945bf8fd82ae339a31063cfc",
+      "block_number": 8
+    },
+    {
+      "case": "AI-INTEGRATION-fdc989ef45a3",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0xc9bb7e6171eac9e468e4166754aea5c37d6ccea429511fb42f34d201c105b0ee",
+      "tx_hash": "ef320b4afceeb6e8c56d38962ad14f7bbf3155b4a333a685dc60918a41d818a9",
+      "block_number": 10
+    },
+    {
+      "case": "AI-INTEGRATION-916448c810f6",
+      "verdict": "CONTRADICTED",
+      "verification_hash": "0x2f01d67188edfa3785be4079a41ea50b51c44643105e63b14969ecf88b4818fa",
+      "tx_hash": "bf7d053ae1c28605cced749bff6e6d3948fb7f3f4d4a0eb856203c0bbb260948",
+      "block_number": 15
+    },
+    {
+      "case": "AI-INTEGRATION-d858b8986722",
+      "verdict": "INSUFFICIENT",
+      "verification_hash": "0x38991fff07f6cd8efba9e2e30c5b2050154e858839c19b30f487d4b1206ceb28",
+      "tx_hash": "0321b3d2b7f939ad259bfd5aea9572baa1c0a902db27a82be830fa0d4a3af962",
+      "block_number": 20
+    },
+    {
+      "case": "AI-INTEGRATION-15e3ee610000",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0xd781f9c2616a5b7dbde7d37ab82f195b0d2bfa34719dd4a3bc0604453c273bcc",
+      "tx_hash": "99c52c87589604a769cca5f18e6a8c3a3fd9685cadb9677d4788f6d7e6b8c901",
+      "block_number": 25
+    },
+    {
+      "case": "AI-INTEGRATION-b628a67c6d57",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0xf791921891fc293265534bf3757e6807fdf6e02215974935814d5eebad50703f",
+      "tx_hash": "1d5ea971c58ba01562af4ab035e2e63f33b83cafdd6d4f9e164d051645d2b148",
+      "block_number": 30,
+      "review_tx_hash": "2a062ab1581aec6da1bc530bfdf1e5701efb9a0fd48fb4a1758043fce2bdc233",
+      "close_tx_hash": "b90ec4333c0b21239b841aded32406b2221db53efaa99c6f54daa540fbba8883",
+      "chain_status": "CLOSED",
+      "close_block": 32
+    },
+    {
+      "case": "AI-INTEGRATION-a7bdafa630ca",
+      "verdict": "INSUFFICIENT",
+      "verification_hash": "0x657980f64d588010ab86f6d0c2dd5a7a3c11887c710d5834c8d9ba295be9c802",
+      "tx_hash": "8eacd61f8119c69de2d55afd4ae69909c2d118f88e3a961f1934e9d60c3b6787",
+      "block_number": 44
+    },
+    {
+      "case": "AI-INTEGRATION-3fdcbd8043e0",
+      "verdict": "INSUFFICIENT",
+      "verification_hash": "0x8bfe5df6fccddb6a5a7927baa4f357a0f15d9692fbcf7355a5609ea6a9a1c0eb",
+      "tx_hash": "5f2ac13d9573d799ef82d72b1aae033b81851c2c59cf49fdda67c02ae3f0edbe",
+      "block_number": 49
+    },
+    {
+      "case": "AI-INTEGRATION-e77893b9d8f2",
+      "verdict": "CONTRADICTED",
+      "verification_hash": "0x4161bd627ebf9da2b6e9c9f8901b88dac340a08b47543ae431fb06273c4cfd24",
+      "tx_hash": "302fcc0172e8fbf4668f76e631ceb45d9c7a7a0c2163aa75960ab69269b014f2",
+      "block_number": 54
+    },
+    {
+      "case": "AI-INTEGRATION-9d7032049a83",
+      "verdict": "INSUFFICIENT",
+      "verification_hash": "0x55abd1b478609f6a665aee8dc593c2409567e23d249c908ec617ec88670458ea",
+      "tx_hash": "15a4d2e969f3dae02ef8944b40b44c05a97ddebb0b692e72fdb610821107869c",
+      "block_number": 58
+    },
+    {
+      "case": "AI-INTEGRATION-a295c55aced5",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0x3c832102943acfa14c1e622e352facb7e2090b6f8633335b8c9ce297a9888ab4",
+      "tx_hash": "c360a646a2a625762be658117b16e375fa4a82c72383a3c5cf4b1daf0f05ae09",
+      "block_number": 63
+    },
+    {
+      "case": "AI-INTEGRATION-6af45d315886",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0x18746739e227729525f94fb89ebadc6c20a0b8d3e74f92ca246c1cc5221aca39",
+      "tx_hash": "ab88df60087e9ad895d1080e1bcc07a020205067a0afbe6cea6a0574ff0f695a",
+      "block_number": 68
+    },
+    {
+      "case": "AI-INTEGRATION-e5d9c9b71e51",
+      "verdict": "INSUFFICIENT",
+      "verification_hash": "0x7cf1bf4ac8f906fdcbce642bc345c3f18d75016314876b135775196332796866",
+      "tx_hash": "b30a99c8d242ee0c8cb049f286761edbef4e859b8b9b385e253a855597a1469f",
+      "block_number": 75
+    },
+    {
+      "case": "AI-INTEGRATION-62816c5242f7",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0xb64b3669c9288dac0e7bec29483f2375619dfbf12e1860f2f35d7af6edf3e9ef",
+      "tx_hash": "25a3bd8bf6668be56e14a9d06eaeccd4f601f54b908b4beb91cb3c18f51a922e",
+      "block_number": 89
+    },
+    {
+      "case": "AI-INTEGRATION-e7d0a076c396",
+      "verdict": "INSUFFICIENT",
+      "verification_hash": "0x6ddc72d6825fb1b2f3b43c3289e1cbcfb7e59784396ed2e91b0b6e6234488542",
+      "tx_hash": "2a0fcc3a27fbe1c17cde8a8bdeb1b37286ddd687a6d85b349f9ac7c0325e89e0",
+      "block_number": 94
+    }
+  ],
+  "extractions": [],
+  "executed_tests": [
+    "test_ai_backend_integration.BackendIntegrationTests.test_admin_approval_does_not_cover_new_verification",
+    "test_ai_backend_integration.BackendIntegrationTests.test_admin_cannot_accept_contradicted_or_close",
+    "test_ai_backend_integration.BackendIntegrationTests.test_admin_cannot_accept_insufficient_or_close",
+    "test_ai_backend_integration.BackendIntegrationTests.test_admin_invalid_signatures_rejected",
+    "test_ai_backend_integration.BackendIntegrationTests.test_admin_supported_approval_and_normal_closure",
+    "test_ai_backend_integration.BackendIntegrationTests.test_claim_and_extraction_saved_with_existing_case_storage",
+    "test_ai_backend_integration.BackendIntegrationTests.test_client_cannot_forge_extraction",
+    "test_ai_backend_integration.BackendIntegrationTests.test_confirmation_signature_tampering_remains_insufficient",
+    "test_ai_backend_integration.BackendIntegrationTests.test_confirmed_without_explicit_link_remains_insufficient",
+    "test_ai_backend_integration.BackendIntegrationTests.test_contradicted",
+    "test_ai_backend_integration.BackendIntegrationTests.test_insufficient_without_proof",
+    "test_ai_backend_integration.BackendIntegrationTests.test_persistence_after_process_restart",
+    "test_ai_backend_integration.BackendIntegrationTests.test_restart_then_admin_approval_and_closure",
+    "test_ai_backend_integration.BackendIntegrationTests.test_source_identity_mismatch_remains_insufficient",
+    "test_ai_backend_integration.BackendIntegrationTests.test_source_tampering_rejected",
+    "test_ai_backend_integration.BackendIntegrationTests.test_stale_claim_version_rejected",
+    "test_ai_backend_integration.BackendIntegrationTests.test_supported",
+    "test_ai_backend_integration.BackendIntegrationTests.test_unconfirmed_mapping_remains_insufficient"
+  ],
+  "failed_tests": []
+}
