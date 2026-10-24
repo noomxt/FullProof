@@ -213,6 +213,99 @@ print("API PERSISTENCE AND PROCESS RESTORE: PASS")
         )
         print(completed.stdout)
 
+
+    def test_restart_then_admin_approval_and_closure(self):
+        import subprocess
+        import sys
+        import database
+        import json
+
+        claim, proofs = self.seed()
+        verification = self.verify(claim, proofs, "SUPPORTED")
+
+        payload = {
+            "db_path": str(database.DB_PATH),
+            "contract_address": self.contract.address,
+            "case_id": self.case_id,
+            "verification_id": verification["verification_id"],
+            "review": self.signed_review(verification),
+            "close": self.signed_close()
+        }
+
+        child_script = """
+import json
+import sys
+
+payload = json.load(sys.stdin)
+
+import database
+database.DB_PATH = payload["db_path"]
+
+import main
+from fastapi.testclient import TestClient
+from pathlib import Path
+
+artifact = json.loads(
+    (Path(main.__file__).parent / main.ABI_PATH).read_text(
+        encoding="utf-8"
+    )
+)
+
+main.contract = main.w3.eth.contract(
+    address=payload["contract_address"],
+    abi=artifact["abi"]
+)
+
+assert payload["case_id"] in main.cases_db
+assert payload["verification_id"] in main.V11_VERIFICATION_RESULTS
+
+case_id = payload["case_id"]
+verification_id = payload["verification_id"]
+
+with TestClient(main.app) as client:
+    review = client.post(
+        f"/api/v1/verifications/{verification_id}/reviews",
+        json=payload["review"]
+    )
+    assert review.status_code == 200, (
+        f"Review failed: {review.status_code} {review.text}"
+    )
+
+    closure = client.post(
+        f"/api/v1/cases/{case_id}/close",
+        json=payload["close"]
+    )
+    assert closure.status_code == 200, (
+        f"Closure failed: {closure.status_code} {closure.text}"
+    )
+
+assert database.load_cases()[case_id]["is_closed"] is True
+
+chain_case = main.contract.functions.cases(
+    main.case_uint(case_id)
+).call()
+assert chain_case[1] == 1
+
+print("RESTARTED FASTAPI REVIEW AND CLOSURE: PASS")
+"""
+
+        completed = subprocess.run(
+            [sys.executable, "-c", child_script],
+            input=json.dumps(payload),
+            text=True,
+            capture_output=True,
+            timeout=90
+        )
+
+        if completed.returncode != 0:
+            self.fail(
+                "Restart test failed:\\n"
+                + completed.stdout + "\\n"
+                + completed.stderr
+            )
+
+        print(completed.stdout)
+
     def test_supported(self):
         self.verify(*self.seed(), 'SUPPORTED')
 
