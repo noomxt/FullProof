@@ -203,3 +203,123 @@ def save_proof_result_atomic(case, history_checkpoint, latest_checkpoint):
         except Exception:
             conn.rollback()
             raise
+
+# FullProof v1.1 - 영속 상태 저장
+# ==========================================
+
+import base64
+from contextlib import closing
+
+
+def _v11_json_default(value):
+    # Proof 원본 바이트를 JSON에 안전하게 저장
+    if isinstance(value, bytes):
+        return {
+            "__fullproof_bytes_b64__": base64.b64encode(
+                value
+            ).decode("ascii")
+        }
+
+    raise TypeError(
+        f"Unsupported v1.1 storage type: {type(value)}"
+    )
+
+
+def _v11_json_hook(value):
+    if (
+        len(value) == 1
+        and "__fullproof_bytes_b64__" in value
+    ):
+        return base64.b64decode(
+            value["__fullproof_bytes_b64__"],
+            validate=True
+        )
+
+    return value
+
+
+def save_v11_store(store_name, store):
+    """
+    v1.1 메모리 딕셔너리의 스냅샷을 SQLite에 저장.
+    tuple 키와 Proof 원본 bytes를 보존한다.
+    """
+
+    if store_name not in (
+        "proof_drafts",
+        "mapping_history",
+        "verification_results"
+    ):
+        raise ValueError("Unsupported v1.1 store")
+
+    entries = [
+        {
+            "key": list(key) if isinstance(key, tuple) else key,
+            "tuple_key": isinstance(key, tuple),
+            "value": value
+        }
+        for key, value in store.items()
+    ]
+
+    serialized = json.dumps(
+        entries,
+        ensure_ascii=False,
+        default=_v11_json_default
+    )
+
+    with closing(get_connection()) as conn:
+        with conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS v11_state (
+                    store_name TEXT PRIMARY KEY,
+                    data TEXT NOT NULL
+                )
+            """)
+
+            conn.execute("""
+                INSERT INTO v11_state (store_name, data)
+                VALUES (?, ?)
+                ON CONFLICT(store_name)
+                DO UPDATE SET data = excluded.data
+            """, (store_name, serialized))
+
+
+def load_v11_store(store_name):
+    """SQLite에서 v1.1 상태 복원"""
+
+    with closing(get_connection()) as conn:
+        with conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS v11_state (
+                    store_name TEXT PRIMARY KEY,
+                    data TEXT NOT NULL
+                )
+            """)
+
+            row = conn.execute(
+                """
+                SELECT data
+                FROM v11_state
+                WHERE store_name = ?
+                """,
+                (store_name,)
+            ).fetchone()
+
+    if row is None:
+        return {}
+
+    entries = json.loads(
+        row["data"],
+        object_hook=_v11_json_hook
+    )
+
+    restored = {}
+
+    for entry in entries:
+        key = entry["key"]
+
+        if entry["tuple_key"]:
+            key = tuple(key)
+
+        restored[key] = entry["value"]
+
+    return restored

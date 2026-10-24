@@ -161,6 +161,58 @@ class BackendIntegrationTests(unittest.TestCase):
             tx_hash=result['verification_tx_hash'], block_number=receipt.blockNumber))
         return result
 
+
+    def test_persistence_after_process_restart(self):
+        import subprocess
+        import sys
+        import database
+
+        # ?? API? Claim, Proof, ??, Verification ??
+        claim, proofs = self.seed()
+        verification = self.verify(claim, proofs, "SUPPORTED")
+
+        # ?? Python ?????? ?? SQLite DB ???
+        script = """
+import sys
+import database
+
+database.DB_PATH = sys.argv[1]
+
+proofs = database.load_v11_store("proof_drafts")
+mappings = database.load_v11_store("mapping_history")
+verifications = database.load_v11_store("verification_results")
+
+case_id, claim_id, verification_id = sys.argv[2:5]
+
+assert (case_id, "PROOF-001", 1) in proofs
+assert proofs[(case_id, "PROOF-001", 1)]["status"] == "ANCHORED"
+assert proofs[(case_id, "PROOF-001", 1)]["source_bytes"]
+
+assert (case_id, claim_id) in mappings
+assert any(
+    m["mapping_status"] == "CONFIRMED"
+    for m in mappings[(case_id, claim_id)]
+)
+
+assert verification_id in verifications
+assert verifications[verification_id]["verdict"] == "SUPPORTED"
+
+print("API PERSISTENCE AND PROCESS RESTORE: PASS")
+"""
+        completed = subprocess.run(
+            [
+                sys.executable, "-c", script,
+                str(database.DB_PATH),
+                self.case_id,
+                self.claim_id,
+                verification["verification_id"]
+            ],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        print(completed.stdout)
+
     def test_supported(self):
         self.verify(*self.seed(), 'SUPPORTED')
 

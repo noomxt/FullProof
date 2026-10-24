@@ -29,6 +29,7 @@ from pydantic import BaseModel, Field
 from web3 import Web3
 from hash_utils import hash_claim_text
 
+from database import save_v11_store, load_v11_store
 from database import (
     init_db,
     save_case,
@@ -170,7 +171,7 @@ def v11_proof_hash(proof):
 
 # FullProof v1.1 - Mock Draft 보관
 # 개발용 메모리 저장. 서버 재시작 시 초기화된다.
-PROOF_DRAFTS = {}
+PROOF_DRAFTS = load_v11_store("proof_drafts")
 
 
 class ProofDraftSchema(BaseModel):
@@ -312,6 +313,7 @@ def create_proof_draft(data: ProofDraftSchema):
         "typed_data": typed_data,
         "status": "UNSIGNED"
     }
+    save_v11_store("proof_drafts", PROOF_DRAFTS)
 
     return {
         "success": True,
@@ -1344,6 +1346,7 @@ def anchor_agency_proof(data: ProofAttestationSchema):
         )
 
     draft["status"] = "ANCHORED"
+    save_v11_store("proof_drafts", PROOF_DRAFTS)
     # 6. 결과 반환
     return {
         "schema_version": "1.1",
@@ -2233,8 +2236,8 @@ from uuid import uuid4
 
 # MVP temporary stores.
 # Not persistent across server restart or multiple workers.
-V11_MAPPING_HISTORY = {}
-V11_VERIFICATION_RESULTS = {}
+V11_MAPPING_HISTORY = load_v11_store("mapping_history")
+V11_VERIFICATION_RESULTS = load_v11_store("verification_results")
 
 
 def v11_now():
@@ -2433,6 +2436,7 @@ def create_v11_mapping(
     V11_MAPPING_HISTORY.setdefault(
         key, []
     ).append(mapping)
+    save_v11_store("mapping_history", V11_MAPPING_HISTORY)
 
     return v11_success(mapping)
 
@@ -2625,6 +2629,7 @@ def confirm_v11_mapping(
         "claim_hash": claim_result["claim_hash"],
         "proof_hash": draft["proof_hash"]
     }
+    save_v11_store("mapping_history", V11_MAPPING_HISTORY)
 
     return v11_success(mapping)
 
@@ -2731,6 +2736,7 @@ def create_v11_verification(
         V11_VERIFICATION_RESULTS[
             verification_id
         ] = result
+        save_v11_store("verification_results", V11_VERIFICATION_RESULTS)
 
     return v11_success(result)
 
