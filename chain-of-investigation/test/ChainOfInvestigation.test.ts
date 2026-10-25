@@ -133,6 +133,35 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
     );
   });
 
+  it("v1.1: legacy anchorProof is disabled", async function () {
+    const claimHash = ethers.keccak256(
+      ethers.toUtf8Bytes("LEGACY_CLAIM")
+    );
+    const proofHash = ethers.keccak256(
+      ethers.toUtf8Bytes("LEGACY_PROOF")
+    );
+
+    await expect(
+      contract.anchorProof(
+        caseId,
+        0,
+        claimHash,
+        proofHash,
+        STATUS.VERIFIED,
+        inputAt,
+        inputAt + 3600n,
+        0,
+        telecom.address,
+        "0x"
+      )
+    ).to.be.revertedWith("Legacy anchorProof disabled");
+
+    const step = await contract.getStepInfo(caseId, 0);
+    expect(step[3]).to.equal(STATUS.PENDING);
+    expect(step[4]).to.equal(false);
+    expect(await contract.agencyNonces(telecom.address)).to.equal(0n);
+  });
+
   it("1. 사건 생성과 단계 추가가 정상 동작한다", async function () {
     const caseInfo = await contract.cases(caseId);
 
@@ -147,544 +176,276 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
     expect(step[5]).to.equal(true);
   });
 
-  it("2. 등록되지 않은 기관은 Proof를 앵커링할 수 없다", async function () {
-    const claimHash = ethers.keccak256(
-      ethers.toUtf8Bytes("CLAIM")
-    );
+  it("2. Unregistered agency cannot anchor v1.1 Proof", async function () {
+    const latestBlock = await ethers.provider.getBlock("latest");
 
-    const proofHash = ethers.keccak256(
-      ethers.toUtf8Bytes("PROOF")
-    );
+    if (!latestBlock) {
+      throw new Error("Latest block unavailable");
+    }
 
     const request = {
       caseId,
       stepId: 0n,
-      claimHash,
-      proofHash,
-      result: STATUS.VERIFIED,
-      evidenceTimestamp: 1750000000n,
-      nonce: 0n,
-      deadline: BigInt(Math.floor(Date.now() / 1000) + 3600),
+      proofIdHash: ethers.sha256(
+        ethers.toUtf8Bytes("UNREGISTERED-PROOF-ID")
+      ),
+      proofVersion: 1n,
+      proofHash: ethers.sha256(
+        ethers.toUtf8Bytes("UNREGISTERED-PROOF-CONTENT")
+      ),
+      occurredAt: BigInt(latestBlock.timestamp - 120),
+      issuedAt: BigInt(latestBlock.timestamp - 60),
       agency: outsider.address,
+      nonce: 0n,
+      deadline: BigInt(latestBlock.timestamp + 3600),
     };
-
-    const signature = await makeProofSignature(
-      contract,
-      outsider,
-      request
-    );
-
-    await expect(
-      contract.anchorProof(
-        caseId,
-        0,
-        claimHash,
-        proofHash,
-        STATUS.VERIFIED,
-        request.evidenceTimestamp,
-        request.deadline,
-        request.nonce,
-        outsider.address,
-        signature
-      )
-    ).to.be.revertedWith("Agency is not authorized");
-  });
-
-  it("3. 올바른 기관 전자서명이 있으면 Proof가 검증되고 기록된다", async function () {
-    const claimHash = ethers.keccak256(
-      ethers.toUtf8Bytes("CLAIM_FAMILY_CALL")
-    );
-
-    const proofHash = ethers.keccak256(
-      ethers.toUtf8Bytes("PROOF_TELECOM_CALL_LOG")
-    );
 
     const networkInfo = await ethers.provider.getNetwork();
 
-    const request = {
-      caseId,
-      stepId: 0n,
-      claimHash,
-      proofHash,
-      result: STATUS.VERIFIED,
-      evidenceTimestamp: 1750000000n,
-      nonce: 0n,
-      deadline: BigInt(Math.floor(Date.now() / 1000) + 3600),
-      agency: telecom.address,
+    const domain = {
+      name: "FullProof",
+      version: "2",
+      chainId: networkInfo.chainId,
+      verifyingContract: await contract.getAddress(),
     };
 
-    const signature = await makeProofSignature(
-      contract,
-      telecom,
+    const types = {
+      ProofAttestation: [
+        { name: "caseId", type: "uint256" },
+        { name: "stepId", type: "uint256" },
+        { name: "proofIdHash", type: "bytes32" },
+        { name: "proofVersion", type: "uint256" },
+        { name: "proofHash", type: "bytes32" },
+        { name: "occurredAt", type: "uint64" },
+        { name: "issuedAt", type: "uint64" },
+        { name: "agency", type: "address" },
+        { name: "nonce", type: "uint256" },
+        { name: "deadline", type: "uint64" },
+      ],
+    };
+
+    const signature = await outsider.signTypedData(
+      domain,
+      types,
       request
     );
 
-    const recovered = await contract.recoverProofSigner(
-      request,
-      signature
-    );
-
-    expect(recovered.toLowerCase()).to.equal(
-      telecom.address.toLowerCase()
-    );
-
-    expect(networkInfo.chainId).to.be.greaterThan(0n);
+    const before = await contract.getAgencyProofHistoryLength(caseId, 0);
 
     await expect(
-      contract.anchorProof(
-        caseId,
-        0,
-        claimHash,
-        proofHash,
-        STATUS.VERIFIED,
-        request.evidenceTimestamp,
-        request.deadline,
-        request.nonce,
-        telecom.address,
-        signature
-      )
-    ).to.emit(contract, "ProofAnchored");
+      contract.anchorProofAttestation(request, signature)
+    ).to.be.revertedWith("Agency is not authorized");
 
-    const step = await contract.getStepInfo(caseId, 0);
+    const after = await contract.getAgencyProofHistoryLength(caseId, 0);
 
-    expect(step[1]).to.equal(claimHash);
-    expect(step[2]).to.equal(proofHash);
-    expect(step[3]).to.equal(STATUS.VERIFIED);
-    expect(step[4]).to.equal(true);
+    expect(after).to.equal(before);
+    expect(await contract.agencyNonces(outsider.address)).to.equal(0n);
+  });
+
+  it("7. v1.1 Proof version history is preserved", async function () {
+    const latestBlock = await ethers.provider.getBlock("latest");
+
+    if (!latestBlock) {
+      throw new Error("Latest block unavailable");
+    }
+
+    const networkInfo = await ethers.provider.getNetwork();
+
+    const domain = {
+      name: "FullProof",
+      version: "2",
+      chainId: networkInfo.chainId,
+      verifyingContract: await contract.getAddress(),
+    };
+
+    const types = {
+      ProofAttestation: [
+        { name: "caseId", type: "uint256" },
+        { name: "stepId", type: "uint256" },
+        { name: "proofIdHash", type: "bytes32" },
+        { name: "proofVersion", type: "uint256" },
+        { name: "proofHash", type: "bytes32" },
+        { name: "occurredAt", type: "uint64" },
+        { name: "issuedAt", type: "uint64" },
+        { name: "agency", type: "address" },
+        { name: "nonce", type: "uint256" },
+        { name: "deadline", type: "uint64" },
+      ],
+    };
+
+    const proofIdHash = ethers.sha256(
+      ethers.toUtf8Bytes("VERSIONED-PROOF-001")
+    );
+
+    const firstHash = ethers.sha256(
+      ethers.toUtf8Bytes("PROOF-CONTENT-V1")
+    );
+
+    const secondHash = ethers.sha256(
+      ethers.toUtf8Bytes("PROOF-CONTENT-V2")
+    );
+
+    const baseRequest = {
+      caseId,
+      stepId: 0n,
+      proofIdHash,
+      occurredAt: BigInt(latestBlock.timestamp - 120),
+      issuedAt: BigInt(latestBlock.timestamp - 60),
+      agency: telecom.address,
+      deadline: BigInt(latestBlock.timestamp + 3600),
+    };
+
+    const first = {
+      ...baseRequest,
+      proofVersion: 1n,
+      proofHash: firstHash,
+      nonce: 0n,
+    };
+
+    const firstSignature = await telecom.signTypedData(
+      domain, types, first
+    );
+
+    await expect(
+      contract.anchorProofAttestation(first, firstSignature)
+    ).to.emit(contract, "AgencyProofAnchored");
 
     expect(
-      await contract.agencyNonces(telecom.address)
+      await contract.getAgencyProofHistoryLength(caseId, 0)
     ).to.equal(1n);
 
-    expect(
-      await contract.getProofHistoryLength(caseId, 0)
-    ).to.equal(1n);
+    const savedFirst = await contract.getAgencyProofRecord(caseId, 0, 0);
 
-    const proof = await contract.getLatestProof(caseId, 0);
+    expect(savedFirst.proofIdHash).to.equal(proofIdHash);
+    expect(savedFirst.proofVersion).to.equal(1n);
+    expect(savedFirst.proofHash).to.equal(firstHash);
 
-    expect(proof.agency.toLowerCase()).to.equal(
-      telecom.address.toLowerCase()
-    );
-
-    expect(proof.signer.toLowerCase()).to.equal(
-      telecom.address.toLowerCase()
-    );
-
-    expect(proof.status).to.equal(
-      STATUS.VERIFIED
-    );
-  });
-
-  it("4. 다른 기관이 만든 서명으로 위장하면 실패한다", async function () {
-    const claimHash = ethers.keccak256(
-      ethers.toUtf8Bytes("CLAIM")
-    );
-
-    const proofHash = ethers.keccak256(
-      ethers.toUtf8Bytes("PROOF")
-    );
-
-    const request = {
-      caseId,
-      stepId: 0n,
-      claimHash,
-      proofHash,
-      result: STATUS.VERIFIED,
-      evidenceTimestamp: 1750000000n,
-      nonce: 0n,
-      deadline: BigInt(Math.floor(Date.now() / 1000) + 3600),
-      agency: telecom.address,
+    const second = {
+      ...baseRequest,
+      proofVersion: 2n,
+      proofHash: secondHash,
+      nonce: await contract.agencyNonces(telecom.address),
     };
 
-    // CCTV가 Telecom을 사칭
-    const forgedSignature = await makeProofSignature(
-      contract,
-      cctv,
-      request
+    const secondSignature = await telecom.signTypedData(
+      domain, types, second
     );
 
     await expect(
-      contract.anchorProof(
-        caseId,
-        0,
-        claimHash,
-        proofHash,
-        STATUS.VERIFIED,
-        request.evidenceTimestamp,
-        request.deadline,
-        request.nonce,
-        telecom.address,
-        forgedSignature
-      )
-    ).to.be.revertedWith(
-      "Invalid electronic signature"
-    );
-  });
-
-  it("5. 같은 서명의 재사용(Replay Attack)을 차단한다", async function () {
-    const claimHash = ethers.keccak256(
-      ethers.toUtf8Bytes("CLAIM")
-    );
-
-    const proofHash = ethers.keccak256(
-      ethers.toUtf8Bytes("PROOF")
-    );
-
-    const request = {
-      caseId,
-      stepId: 0n,
-      claimHash,
-      proofHash,
-      result: STATUS.VERIFIED,
-      evidenceTimestamp: 1750000000n,
-      nonce: 0n,
-      deadline: BigInt(Math.floor(Date.now() / 1000) + 3600),
-      agency: telecom.address,
-    };
-
-    const signature = await makeProofSignature(
-      contract,
-      telecom,
-      request
-    );
-
-    await contract.anchorProof(
-      caseId,
-      0,
-      claimHash,
-      proofHash,
-      STATUS.VERIFIED,
-      request.evidenceTimestamp,
-      request.deadline,
-      request.nonce,
-      telecom.address,
-      signature
-    );
-
-    await expect(
-      contract.anchorProof(
-        caseId,
-        0,
-        claimHash,
-        proofHash,
-        STATUS.VERIFIED,
-        request.evidenceTimestamp,
-        request.deadline,
-        request.nonce,
-        telecom.address,
-        signature
-      )
-    ).to.be.revertedWith(
-      "Invalid or used nonce"
-    );
-  });
-
-  it("6. 만료된 전자서명은 거부한다", async function () {
-    const claimHash = ethers.keccak256(
-      ethers.toUtf8Bytes("CLAIM")
-    );
-
-    const proofHash = ethers.keccak256(
-      ethers.toUtf8Bytes("PROOF")
-    );
-
-    const request = {
-      caseId,
-      stepId: 0n,
-      claimHash,
-      proofHash,
-      result: STATUS.VERIFIED,
-      evidenceTimestamp: 1750000000n,
-      nonce: 0n,
-      deadline: 1n,
-      agency: telecom.address,
-    };
-
-    const signature = await makeProofSignature(
-      contract,
-      telecom,
-      request
-    );
-
-    await expect(
-      contract.anchorProof(
-        caseId,
-        0,
-        claimHash,
-        proofHash,
-        STATUS.VERIFIED,
-        request.evidenceTimestamp,
-        request.deadline,
-        request.nonce,
-        telecom.address,
-        signature
-      )
-    ).to.be.revertedWith(
-      "Signature expired"
-    );
-  });
-
-  it("7. 재검증이 발생해도 과거 Proof history는 보존된다", async function () {
-    const claim1 = ethers.keccak256(
-      ethers.toUtf8Bytes("CLAIM_V1")
-    );
-
-    const proof1 = ethers.keccak256(
-      ethers.toUtf8Bytes("PROOF_V1")
-    );
-
-    const claim2 = ethers.keccak256(
-      ethers.toUtf8Bytes("CLAIM_V2")
-    );
-
-    const proof2 = ethers.keccak256(
-      ethers.toUtf8Bytes("PROOF_V2")
-    );
-
-    const deadline = BigInt(
-      Math.floor(Date.now() / 1000) + 3600
-    );
-
-    const request1 = {
-      caseId,
-      stepId: 0n,
-      claimHash: claim1,
-      proofHash: proof1,
-      result: STATUS.MISMATCH,
-      evidenceTimestamp: 1750000000n,
-      nonce: 0n,
-      deadline,
-      agency: telecom.address,
-    };
-
-    const sig1 = await makeProofSignature(
-      contract,
-      telecom,
-      request1
-    );
-
-    await contract.anchorProof(
-      caseId,
-      0,
-      claim1,
-      proof1,
-      STATUS.MISMATCH,
-      request1.evidenceTimestamp,
-      request1.deadline,
-      request1.nonce,
-      telecom.address,
-      sig1
-    );
-
-    const request2 = {
-      ...request1,
-      claimHash: claim2,
-      proofHash: proof2,
-      result: STATUS.VERIFIED,
-      nonce: 1n,
-    };
-
-    const sig2 = await makeProofSignature(
-      contract,
-      telecom,
-      request2
-    );
-
-    await contract.anchorProof(
-      caseId,
-      0,
-      claim2,
-      proof2,
-      STATUS.VERIFIED,
-      request2.evidenceTimestamp,
-      request2.deadline,
-      request2.nonce,
-      telecom.address,
-      sig2
-    );
+      contract.anchorProofAttestation(second, secondSignature)
+    ).to.emit(contract, "AgencyProofAnchored");
 
     expect(
-      await contract.getProofHistoryLength(caseId, 0)
+      await contract.getAgencyProofHistoryLength(caseId, 0)
     ).to.equal(2n);
 
-    const first = await contract.getProofRecord(
-      caseId,
-      0,
-      0
-    );
+    // Older records must remain unchanged.
+    const oldRecord = await contract.getAgencyProofRecord(caseId, 0, 0);
+    const newRecord = await contract.getAgencyProofRecord(caseId, 0, 1);
 
-    const latest = await contract.getLatestProof(
-      caseId,
-      0
-    );
+    expect(oldRecord.proofIdHash).to.equal(proofIdHash);
+    expect(oldRecord.proofVersion).to.equal(1n);
+    expect(oldRecord.proofHash).to.equal(firstHash);
 
-    expect(first.status).to.equal(
-      STATUS.MISMATCH
-    );
+    expect(newRecord.proofIdHash).to.equal(proofIdHash);
+    expect(newRecord.proofVersion).to.equal(2n);
+    expect(newRecord.proofHash).to.equal(secondHash);
 
-    expect(latest.status).to.equal(
-      STATUS.VERIFIED
-    );
-
-    expect(latest.proofHash).to.equal(
-      proof2
-    );
+    const step = await contract.getStepInfo(caseId, 0);
+    expect(step.status).to.equal(BigInt(STATUS.PENDING));
   });
 
-  it("8. v1.1 종결 조건 구현 전에는 미검증 사건을 종결할 수 없다", async function () {
-    const claimHash = ethers.keccak256(
-      ethers.toUtf8Bytes("CLAIM")
-    );
-
-    const proofHash = ethers.keccak256(
-      ethers.toUtf8Bytes("PROOF")
-    );
-
-    const request = {
-      caseId,
-      stepId: 0n,
-      claimHash,
-      proofHash,
-      result: STATUS.VERIFIED,
-      evidenceTimestamp: 1750000000n,
-      nonce: 0n,
-      deadline: BigInt(
-        Math.floor(Date.now() / 1000) + 3600
-      ),
-      agency: telecom.address,
-    };
-
-    const signature = await makeProofSignature(
-      contract,
-      telecom,
-      request
-    );
-
-    await contract.anchorProof(
-      caseId,
-      0,
-      claimHash,
-      proofHash,
-      STATUS.VERIFIED,
-      request.evidenceTimestamp,
-      request.deadline,
-      request.nonce,
-      telecom.address,
-      signature
-    );
-
-
-    // v1.1 관리자 승인·최신성 검사 구현 전에는 종결을 차단한다.
+  it("8. Cannot close case without Verification", async function () {
+    // No Verification has been recorded for the required steps.
     await expect(
-      contract.closeCase(
-        caseId,
-        "종결 검토"
-      )
-    ).to.be.revertedWith(
-      "Cannot close: no verification"
-    );
+      contract.closeCase(caseId, "?? ??")
+    ).to.be.revertedWith("Cannot close: no verification");
 
-  });
-
-  it("9. 기존 VERIFIED 상태만으로는 v1.1 사건 종결을 허용하지 않는다", async function () {
-    const deadline = BigInt(
-      Math.floor(Date.now() / 1000) + 3600
-    );
-
-    // STEP 0 - Telecom
-    const step0 = {
-      caseId,
-      stepId: 0n,
-      claimHash: ethers.keccak256(
-        ethers.toUtf8Bytes("CLAIM_0")
-      ),
-      proofHash: ethers.keccak256(
-        ethers.toUtf8Bytes("PROOF_0")
-      ),
-      result: STATUS.VERIFIED,
-      evidenceTimestamp: 1750000000n,
-      nonce: 0n,
-      deadline,
-      agency: telecom.address,
-    };
-
-    const sig0 = await makeProofSignature(
-      contract,
-      telecom,
-      step0
-    );
-
-    await contract.anchorProof(
-      caseId,
-      0,
-      step0.claimHash,
-      step0.proofHash,
-      step0.result,
-      step0.evidenceTimestamp,
-      step0.deadline,
-      step0.nonce,
-      step0.agency,
-      sig0
-    );
-
-    // STEP 1 - CCTV
-    const step1 = {
-      caseId,
-      stepId: 1n,
-      claimHash: ethers.keccak256(
-        ethers.toUtf8Bytes("CLAIM_1")
-      ),
-      proofHash: ethers.keccak256(
-        ethers.toUtf8Bytes("PROOF_1")
-      ),
-      result: STATUS.VERIFIED,
-      evidenceTimestamp: 1750000001n,
-      nonce: 0n,
-      deadline,
-      agency: cctv.address,
-    };
-
-    const sig1 = await makeProofSignature(
-      contract,
-      cctv,
-      step1
-    );
-
-    await contract.anchorProof(
-      caseId,
-      1,
-      step1.claimHash,
-      step1.proofHash,
-      step1.result,
-      step1.evidenceTimestamp,
-      step1.deadline,
-      step1.nonce,
-      step1.agency,
-      sig1
-    );
-
-    // 기존 VERIFIED 상태만으로는 종결할 수 없어야 한다.
-    await expect(
-      contract.closeCase(
-        caseId,
-        "실종자 소재 확인 및 종결"
-      )
-    ).to.be.revertedWith(
-      "Cannot close: no verification"
-    );
-
-
-    // v1.1 종결 조건을 충족하지 않았으므로 사건은 OPEN으로 유지
     const caseInfo = await contract.cases(caseId);
-
     expect(caseInfo.status).to.equal(0n);
     expect(caseInfo.closeReason).to.equal("");
-
   });
 
 
+  it("9. Proof attestations alone cannot close a case", async function () {
+    const networkInfo = await ethers.provider.getNetwork();
+    const latestBlock = await ethers.provider.getBlock("latest");
+
+    if (!latestBlock) {
+      throw new Error("Latest block unavailable");
+    }
+
+    const domain = {
+      name: "FullProof",
+      version: "2",
+      chainId: networkInfo.chainId,
+      verifyingContract: await contract.getAddress(),
+    };
+
+    const types = {
+      ProofAttestation: [
+        { name: "caseId", type: "uint256" },
+        { name: "stepId", type: "uint256" },
+        { name: "proofIdHash", type: "bytes32" },
+        { name: "proofVersion", type: "uint256" },
+        { name: "proofHash", type: "bytes32" },
+        { name: "occurredAt", type: "uint64" },
+        { name: "issuedAt", type: "uint64" },
+        { name: "agency", type: "address" },
+        { name: "nonce", type: "uint256" },
+        { name: "deadline", type: "uint64" },
+      ],
+    };
+
+    const agencies = [
+      { signer: telecom, stepId: 0n, label: "TELECOM" },
+      { signer: cctv, stepId: 1n, label: "CCTV" },
+    ];
+
+    for (const agency of agencies) {
+      const request = {
+        caseId,
+        stepId: agency.stepId,
+        proofIdHash: ethers.sha256(
+          ethers.toUtf8Bytes("PROOF-" + agency.label)
+        ),
+        proofVersion: 1n,
+        proofHash: ethers.sha256(
+          ethers.toUtf8Bytes("EVIDENCE-" + agency.label)
+        ),
+        occurredAt: BigInt(latestBlock.timestamp - 120),
+        issuedAt: BigInt(latestBlock.timestamp - 60),
+        agency: agency.signer.address,
+        nonce: await contract.agencyNonces(agency.signer.address),
+        deadline: BigInt(latestBlock.timestamp + 3600),
+      };
+
+      const signature = await agency.signer.signTypedData(
+        domain,
+        types,
+        request
+      );
+
+      await expect(
+        contract.anchorProofAttestation(request, signature)
+      ).to.emit(contract, "AgencyProofAnchored");
+
+      const step = await contract.getStepInfo(caseId, agency.stepId);
+      expect(step.status).to.equal(BigInt(STATUS.PENDING));
+    }
+
+    // Agency Proofs do not replace Verification and administrator approval.
+    await expect(
+      contract.closeCase(caseId, "Closure without Verification")
+    ).to.be.revertedWith("Cannot close: no verification");
+
+    const caseInfo = await contract.cases(caseId);
+    expect(caseInfo.status).to.equal(0n);
+    expect(caseInfo.closeReason).to.equal("");
+  });
+
   // ========================================
-  // FullProof v1.1 - Claim 원문 고정 테스트
+  // FullProof v1.1 Claim tests
   // ========================================
 
   it("10. Claim v1을 블록체인에 정상 기록한다", async function () {

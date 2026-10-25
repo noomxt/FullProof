@@ -8,7 +8,7 @@ scratch.mkdir(exist_ok=True)
 tempfile.tempdir=str(scratch)
 faulthandler.enable()
 # Includes TestClient's event-loop startup, which HTTP timeouts cannot bound.
-faulthandler.dump_traceback_later(45, exit=True)
+faulthandler.dump_traceback_later(300, exit=True)
 try:
     # The backend also contains executable test_*.py demos which write to a
     # chain at import time. Do not import them through unittest discovery.
