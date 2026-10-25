@@ -1418,6 +1418,7 @@ def get_agency_proof_history(case_id: str, step_id: int):
 
 @app.post("/api/v1/cases/verify")
 def verify_and_anchor_step(data: VerifyRequestSchema):
+    raise HTTPException(410, "Legacy verification endpoint disabled; use POST /api/v1/verifications")
     require_chain()
     case = cases_db.get(data.case_id)
     if not case:
@@ -1450,6 +1451,7 @@ def verify_and_anchor_step(data: VerifyRequestSchema):
 
 @app.post("/api/v1/cases/proofs/anchor")
 def anchor_signed_proof(data: AnchorProofSchema):
+    raise HTTPException(410, "Legacy Proof endpoint disabled; use POST /api/v1/proofs/anchor")
     require_chain()
 
     # 1. 사건과 수사 단계 확인
@@ -2239,6 +2241,13 @@ from uuid import uuid4
 V11_MAPPING_HISTORY = load_v11_store("mapping_history")
 V11_VERIFICATION_RESULTS = load_v11_store("verification_results")
 
+# Verification retry deduplication (single-process MVP).
+from threading import RLock as _V11RLock
+V11_VERIFICATION_LOCK = _V11RLock()
+V11_VERIFICATION_IDEMPOTENCY = load_v11_store(
+    "verification_idempotency"
+)
+
 
 def v11_now():
     return datetime.now(timezone.utc).strftime(
@@ -2726,17 +2735,68 @@ def create_v11_verification(
         "registered_policy_hash": v11_sha256(POLICY),
     }
 
-    # The existing function validates Claim/Proof on-chain
-    # and reconstructs proof_validation internally.
-    result = process_v11_verification(validated_inputs)
+    # Fingerprint only server-resolved references and mapping history.
+    # A changed Claim, Proof, policy, or mapping produces a new key.
+    proof_refs_for_key = sorted(
+        [
+            {
+                "proof_id": p["proof_id"],
+                "proof_version": p["proof_version"],
+                "proof_hash": p["proof_hash"],
+            }
+            for p in server_proofs
+        ],
+        key=lambda p: (p["proof_id"], p["proof_version"]),
+    )
+    request_fingerprint = v11_sha256({
+        "schema_version": "1.1",
+        "case_id": case_id,
+        "step_id": step_id,
+        "claim_id": claim_id,
+        "claim_version": supplied_version,
+        "claim_hash": claim["claim_hash"],
+        "structured_claim": claim["structured_claim"],
+        "proof_refs": proof_refs_for_key,
+        "mappings": safe_mappings,
+        "policy_hash": validated_inputs["registered_policy_hash"],
+    })
 
-    verification_id = result.get("verification_id")
+    # Serialize check -> verify -> anchor -> persist in one process.
+    with V11_VERIFICATION_LOCK:
+        existing_id = V11_VERIFICATION_IDEMPOTENCY.get(
+            request_fingerprint
+        )
+        existing = V11_VERIFICATION_RESULTS.get(existing_id)
 
-    if verification_id:
-        V11_VERIFICATION_RESULTS[
-            verification_id
-        ] = result
-        save_v11_store("verification_results", V11_VERIFICATION_RESULTS)
+        if (
+            existing
+            and existing.get("processing_status") == "COMPLETED"
+            and existing.get("verification_tx_hash")
+        ):
+            return v11_success(existing)
+
+        # This validates Claim/Proof on-chain and reconstructs
+        # proof_validation internally before anchoring.
+        result = process_v11_verification(validated_inputs)
+
+        verification_id = result.get("verification_id")
+        if verification_id:
+            V11_VERIFICATION_RESULTS[verification_id] = result
+            save_v11_store(
+                "verification_results", V11_VERIFICATION_RESULTS
+            )
+
+            if (
+                result.get("processing_status") == "COMPLETED"
+                and result.get("verification_tx_hash")
+            ):
+                V11_VERIFICATION_IDEMPOTENCY[
+                    request_fingerprint
+                ] = verification_id
+                save_v11_store(
+                    "verification_idempotency",
+                    V11_VERIFICATION_IDEMPOTENCY,
+                )
 
     return v11_success(result)
 
