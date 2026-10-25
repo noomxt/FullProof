@@ -1,4 +1,9 @@
-"""PRD 3–8. Deterministic comparison/decision and explicit demo policy."""
+"""Shared normalization helpers plus retained offline prototype comparison rules.
+
+v1.1 imports timestamp/normalize_claim here. Production v1.1 decisions belong
+only to verification_v11.verify_v11; semantic_compare/decide and DEMO_POLICY
+below are historical prototype utilities, not the production decision policy.
+"""
 from datetime import datetime, timezone, timedelta
 from copy import deepcopy
 import math

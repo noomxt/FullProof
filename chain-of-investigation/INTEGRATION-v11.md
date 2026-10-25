@@ -1,5 +1,15 @@
 # AI Verification v1.1 integration
 
+## AI legacy 정리 후 변경
+
+`ai_engine.verify_claim_vs_proof`는 import 호환만 남기고 실행 시
+LEGACY_AI_VERIFICATION_DISABLED 오류를 냅니다. v1.1 판정에는 verify_v11만 사용합니다.
+`backend_bridge.register_signed_draft_routes`는 구버전 Draft/서명/Anchor/상태 경로에
+410 LEGACY_AI_SIGNING_DISABLED만 반환하며 OpenAPI에서 숨깁니다.
+Claim·AI 판정이 포함된 서명 데이터 생성/거래 제출 코드는 제거했습니다.
+파서와 normalize_claim/timestamp는 extract_v11이 사용하므로 유지합니다.
+verification.py/pipeline.py의 과거 비교 유틸리티는 오프라인 프로토타입용으로 명시합니다.
+
 이 브랜치는 AI v1.1 계산 모듈과 입력·출력 fixture를 공유합니다. 온체인 기록·기관 서명 검증 완료를 의미하지 않습니다.
 
 ## 파일
@@ -51,7 +61,8 @@ uint64 deadline
 함께 서명하는 구버전 전용 코드입니다. v1.1 통합에서 등록하지 마세요. 필드 추가만으로
 새 컨트랙트에 호환되지 않습니다. v1.1은 아래 `register_v11_routes`만 연결하고,
 Proof 독립 서명·검증·온체인 기록은 백엔드의 새 구현을 사용합니다.
-구버전 함수는 기존 호출부 호환을 위해 보존하며 v1.1 구현으로 표시하지 않습니다.
+구버전 함수 이름은 import 호환을 위해 유지하지만, 서명 경로는 410으로 차단하며
+구버전 데이터 생성·거래 전송 구현은 제거했습니다.
 
 공유된 Mock 기대값:
 - proofHash: `0xd9491d4f357151184e95ba4f4044686cb93b88daaa62cd6d443614b236ca793b`

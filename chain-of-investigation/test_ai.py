@@ -102,7 +102,14 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(timestamp(r['actions'][0]['claimed_time']),timestamp(PROOF['occurred_at']))
 
     def test_legacy_no_validation_never_supported(self):
-        self.assertEqual(verify_claim_vs_proof(parse_fixture(TEXT),PROOF)[0],'INSUFFICIENT')
+        with patch('verification.semantic_compare', side_effect=AssertionError('Legacy LLM must not run')):
+            with self.assertRaisesRegex(RuntimeError, 'LEGACY_AI_VERIFICATION_DISABLED'):
+                verify_claim_vs_proof(parse_fixture(TEXT), PROOF)
+
+    def test_legacy_trusted_flags_do_not_reenable_verdict(self):
+        with self.assertRaisesRegex(RuntimeError, 'LEGACY_AI_VERIFICATION_DISABLED'):
+            verify_claim_vs_proof(parse_fixture(TEXT), PROOF,
+                                  proof_validation={'status':'VALID'}, client=object())
 
 
 class PolicyTests(unittest.TestCase):
@@ -260,84 +267,41 @@ class SignedBridgeTests(unittest.TestCase):
     def setUp(self):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
-        from backend_bridge import register_ai_routes, register_signed_draft_routes
-        self.temp=tempfile.TemporaryDirectory()
-        self.app=FastAPI()
-        self.cases={'C1':{'is_closed':False,'steps':[{'step_name':DEMO_POLICY['steps'][0]['step_name']}]}}
-        self.store=register_ai_routes(self.app,self.cases,db_path=Path(self.temp.name)/'signed.db')
-        class FakeWeb3:
-            @staticmethod
-            def to_checksum_address(v): return v
-            @staticmethod
-            def to_hex(v): return '0x'+v.hex() if isinstance(v,bytes) else v
-            @staticmethod
-            def to_bytes(hexstr): return bytes.fromhex(hexstr[2:])
-        self.chain_calls=[]
-        class FakeCall:
-            def call(inner,tx): return None
-            def transact(inner,tx): return bytes.fromhex('ab'*32)
-        def anchor(*args):
-            self.chain_calls.append(args)
-            return FakeCall()
-        self.ctx={'Web3':FakeWeb3,'require_chain':lambda:None,
-                  'canonical_hash':lambda v:hashlib.sha256(json_bytes(v)).digest(),
-                  'case_uint':lambda v:42,'w3':SimpleNamespace(eth=SimpleNamespace(chain_id=31337)),
-                  'contract':SimpleNamespace(address='0xcontract',functions=SimpleNamespace(anchorProof=anchor)),
-                  'PROOF_TYPES':{'Proof':[]},'validate_proof':lambda request,signature:'0xsigner',
-                  'sender':lambda:'0xsender','confirmed':lambda tx:FakeWeb3.to_hex(tx)}
-        register_signed_draft_routes(self.app,self.cases,self.store,self.ctx)
-        self.client=TestClient(self.app)
-        body={'request_id':'D1','case_id':'C1','step_id':0,'claim_id':'CL1','claim_version':1,
-              'raw_claim_text':TEXT,'proof':deepcopy(PROOF)}
-        with patch('ai_engine.parse_claim_with_llm',side_effect=parse_fixture),patch('pipeline.semantic_compare',return_value=deepcopy(SEM)):
-            response=self.client.post('/api/v1/ai/drafts',json=body)
-        self.assertEqual(response.status_code,200,response.text)
-        self.draft=response.json()['analysis']
-        self.body={'analysis_id':self.draft['analysis_id'],'agency':'0xagency','signature':'0xsigned',
-                   'nonce':0,'deadline':2000000000,'evidence_timestamp':int(timestamp(PROOF['occurred_at']).timestamp())}
-    def tearDown(self): self.temp.cleanup()
+        from backend_bridge import register_signed_draft_routes
+        self.app = FastAPI()
+        # Sentinels fail if retired registration touches chain/storage at all.
+        class Forbidden:
+            def __getattr__(self, name):
+                raise AssertionError('Retired flow accessed chain/storage')
+            def __getitem__(self, name):
+                raise AssertionError('Retired flow accessed chain/storage')
+        register_signed_draft_routes(self.app, Forbidden(), Forbidden(), Forbidden())
+        self.client = TestClient(self.app)
 
-    def test_unsigned_draft_is_explicitly_provisional(self):
-        self.assertTrue(self.draft['is_provisional'])
-        self.assertEqual(self.draft['trust_status'],'PENDING_SIGNATURE')
-        self.assertNotIn('is_completed',self.cases['C1']['steps'][0])
+    def tearDown(self):
+        self.client.close()
 
-    def test_frozen_anchor_never_reparses(self):
-        with patch('ai_engine.parse_claim_with_llm',side_effect=AssertionError('Unexpected LLM call')):
-            r=self.client.post('/api/v1/ai/anchor',json=self.body)
-        self.assertEqual(r.status_code,200,r.text)
-        self.assertEqual(r.json()['anchor_status'],'CONFIRMED')
-        self.assertEqual(self.chain_calls[0][2],self.ctx['canonical_hash'](self.draft['structured_claim']))
-        self.assertEqual(self.chain_calls[0][3],self.ctx['canonical_hash'](PROOF))
+    def test_all_old_signing_paths_are_gone(self):
+        with patch('ai_engine.parse_claim_with_llm', side_effect=AssertionError('Unexpected LLM')):
+            for method, path in (
+                ('POST', '/api/v1/ai/drafts'),
+                ('POST', '/api/v1/ai/drafts/OLD/signing-payload'),
+                ('POST', '/api/v1/ai/anchor'),
+                ('GET', '/api/v1/ai/anchor-status/OLD'),
+            ):
+                with self.subTest(path=path):
+                    response = self.client.request(method, path)
+                    self.assertEqual(response.status_code, 410)
+                    self.assertEqual(response.json()['error']['code'], 'LEGACY_AI_SIGNING_DISABLED')
+                    self.assertIsNone(response.json()['data'])
 
-    def test_confirmed_anchor_retry_no_resubmit(self):
-        self.client.post('/api/v1/ai/anchor',json=self.body)
-        self.client.post('/api/v1/ai/anchor',json=self.body)
-        self.assertEqual(len(self.chain_calls),1)
+    def test_trusted_flags_cannot_reenable_old_signing(self):
+        response = self.client.post('/api/v1/ai/anchor', json={
+            'proof_validation': {'status':'VALID'}, 'signature':'0xsigned', 'verdict':'SUPPORTED'})
+        self.assertEqual(response.status_code, 410)
 
-    def test_wrong_evidence_timestamp_rejected(self):
-        self.body['evidence_timestamp']+=1
-        self.assertEqual(self.client.post('/api/v1/ai/anchor',json=self.body).status_code,409)
-        self.assertEqual(len(self.chain_calls),0)
-
-    def test_policy_step_name_mismatch(self):
-        self.cases['C1']['steps'][0]['step_name']='different step'
-        self.assertEqual(self.client.post('/api/v1/ai/anchor',json=self.body).status_code,409)
-
-    def test_invalid_signature_not_saved_as_confirmed(self):
-        def fail(*a): raise ValueError('Invalid signature')
-        self.ctx['validate_proof']=fail
-        self.assertEqual(self.client.post('/api/v1/ai/anchor',json=self.body).status_code,400)
-        self.assertIsNone(self.store.get(self.draft['analysis_id'])['delivery'])
-
-    def test_timeout_retains_submitted_and_retry_no_resubmit(self):
-        def fail(*a): raise TimeoutError('Confirmation timed out')
-        self.ctx['confirmed']=fail
-        self.assertEqual(self.client.post('/api/v1/ai/anchor',json=self.body).status_code,400)
-        r=self.client.post('/api/v1/ai/anchor',json=self.body)
-        self.assertEqual(r.json()['anchor_status'],'SUBMITTED')
-        self.assertEqual(len(self.chain_calls),1)
-
+    def test_retired_paths_are_not_advertised_in_openapi(self):
+        self.assertEqual(self.app.openapi()['paths'], {})
 
 
 if __name__=='__main__': unittest.main(verbosity=2)

@@ -1,4 +1,9 @@
-"""AI orchestration, immutable SQLite history and delivery (PRD 9)."""
+"""Historical prototype orchestration and offline analysis history (PRD 9).
+
+Not the v1.1 production verification entry point. v1.1 uses stored Claim
+extraction and verification_v11.verify_v11 through main.py. Institution signing
+of prototype analysis payloads is disabled in backend_bridge.
+"""
 import hashlib
 import json
 import sqlite3

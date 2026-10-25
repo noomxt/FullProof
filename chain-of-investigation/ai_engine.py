@@ -5,7 +5,7 @@ Run local checks: python ai_engine.py --self-test
 Run real parsing: python ai_engine.py --text '2026년 10월 10일 오후 2시에 P001에게 전화했으나 연결되지 않았다.'
 Set GEMINI_API_KEY in the project .env; optional GEMINI_MODEL.
 PRD 3–10 are in verification.py, pipeline.py, backend_bridge.py and test_ai.py.
-Legacy verification requires trusted validation passed explicitly by backend.
+Legacy verify_claim_vs_proof is disabled; v1.1 uses verification_v11.verify_v11.
 Never anchor a fresh LLM output against a signature over a different payload.
 """
 import argparse
@@ -244,29 +244,13 @@ def parse_claim_with_llm(raw_claim_text: str, *, client=None) -> dict:
 
 def verify_claim_vs_proof(claim, proof, evidence_deadline=None, *, proof_validation=None,
                           time_tolerance_seconds=900, client=None):
-    """Legacy tuple adapter. Existing main.py supplies no trusted validation,
-    so it must not automatically return SUPPORTED. Use backend_bridge instead.
-    evidence_deadline is intentionally not part of the content verdict.
+    """Disabled legacy import shim; never produce a v1.1 verdict here.
+
+    Kept importable while the backend separately removes /cases/verify.
+    v1.1 requires stored versions, explicit mapping and backend validation;
+    a legacy (claim, proof) tuple cannot supply that contract.
     """
-    from verification import normalize_claim, normalize_proof, compare_fields, semantic_compare, decide
-    if claim.get('parse_status') == 'FAILED':
-        return 'INSUFFICIENT', '수사 기록 파싱에 실패했습니다. 재분석이 필요합니다.'
-    actions = normalize_claim(claim).get('actions', [])
-    if len(actions) != 1:
-        return 'INSUFFICIENT', '행동별 Proof 연결이 필요합니다.'
-    try:
-        normalized = normalize_proof(proof)
-        policy = {'required_fields': ['target_id', 'action_type', 'claimed_time', 'status_claim'],
-                  'time_tolerance_seconds': time_tolerance_seconds}
-        comparison = compare_fields(actions[0], normalized, proof_validation or {'status': 'PENDING'}, policy)
-        semantic = semantic_compare(actions[0]['source_text'], normalized.get('proof_text', ''),
-                                    comparison['field_checks'], client=client) if comparison['comparison_status'] == 'COMPLETED' else {}
-        result = decide(comparison, semantic)
-        if claim.get('parse_status') == 'NEEDS_REVIEW' and result['verdict'] == 'SUPPORTED':
-            return 'INSUFFICIENT', '추출 결과의 추가 검토가 필요합니다.'
-        return result['verdict'], result['reason_text']
-    except (ValueError, TypeError, KeyError):
-        return 'INSUFFICIENT', '입력 형식·시각·비교 기준을 확인하세요.'
+    raise RuntimeError('LEGACY_AI_VERIFICATION_DISABLED: use verification_v11.verify_v11 with trusted backend inputs')
 
 
 def get_guidelines_from_policy_pack(case_type='MISSING_PERSON', *, policy=None,
