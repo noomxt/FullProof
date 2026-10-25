@@ -2071,6 +2071,10 @@ def recover_proof(
     step_id: int,
     data: RecoverProofSchema
 ):
+    raise HTTPException(
+        410,
+        "Legacy Proof recovery disabled in v1.1"
+    )
     require_chain()
 
     # 1. SQLite에 사건과 수사 단계가 존재하는지 확인

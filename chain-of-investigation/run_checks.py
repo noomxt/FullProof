@@ -16,6 +16,7 @@ try:
         'test_ai', 'test_action_types', 'test_extraction_output',
         'test_verification_v11', 'test_v11_contract', 'test_conflict_sort',
         'test_ai_backend_integration',
+        'test_legacy_recover_proof',
     ])
     result=unittest.TextTestRunner(verbosity=1).run(suite)
 finally:
