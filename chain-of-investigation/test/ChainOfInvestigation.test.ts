@@ -133,33 +133,24 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
     );
   });
 
-  it("v1.1: legacy anchorProof is disabled", async function () {
-    const claimHash = ethers.keccak256(
-      ethers.toUtf8Bytes("LEGACY_CLAIM")
-    );
-    const proofHash = ethers.keccak256(
-      ethers.toUtf8Bytes("LEGACY_PROOF")
-    );
 
+  it("v11_legacy_anchorProof_must_revert", async function () {
     await expect(
       contract.anchorProof(
         caseId,
         0,
-        claimHash,
-        proofHash,
+        ethers.ZeroHash,
+        ethers.ZeroHash,
         STATUS.VERIFIED,
-        inputAt,
-        inputAt + 3600n,
-        0,
-        telecom.address,
+        1n,
+        1n,
+        0n,
+        outsider.address,
         "0x"
       )
-    ).to.be.revertedWith("Legacy anchorProof disabled");
-
-    const step = await contract.getStepInfo(caseId, 0);
-    expect(step[3]).to.equal(STATUS.PENDING);
-    expect(step[4]).to.equal(false);
-    expect(await contract.agencyNonces(telecom.address)).to.equal(0n);
+    ).to.be.revertedWith(
+      "LEGACY_PROOF_DISABLED: use ProofAttestation and Verification"
+    );
   });
 
   it("1. 사건 생성과 단계 추가가 정상 동작한다", async function () {
@@ -176,277 +167,16 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
     expect(step[5]).to.equal(true);
   });
 
-  it("2. Unregistered agency cannot anchor v1.1 Proof", async function () {
-    const latestBlock = await ethers.provider.getBlock("latest");
 
-    if (!latestBlock) {
-      throw new Error("Latest block unavailable");
-    }
-
-    const request = {
-      caseId,
-      stepId: 0n,
-      proofIdHash: ethers.sha256(
-        ethers.toUtf8Bytes("UNREGISTERED-PROOF-ID")
-      ),
-      proofVersion: 1n,
-      proofHash: ethers.sha256(
-        ethers.toUtf8Bytes("UNREGISTERED-PROOF-CONTENT")
-      ),
-      occurredAt: BigInt(latestBlock.timestamp - 120),
-      issuedAt: BigInt(latestBlock.timestamp - 60),
-      agency: outsider.address,
-      nonce: 0n,
-      deadline: BigInt(latestBlock.timestamp + 3600),
-    };
-
-    const networkInfo = await ethers.provider.getNetwork();
-
-    const domain = {
-      name: "FullProof",
-      version: "2",
-      chainId: networkInfo.chainId,
-      verifyingContract: await contract.getAddress(),
-    };
-
-    const types = {
-      ProofAttestation: [
-        { name: "caseId", type: "uint256" },
-        { name: "stepId", type: "uint256" },
-        { name: "proofIdHash", type: "bytes32" },
-        { name: "proofVersion", type: "uint256" },
-        { name: "proofHash", type: "bytes32" },
-        { name: "occurredAt", type: "uint64" },
-        { name: "issuedAt", type: "uint64" },
-        { name: "agency", type: "address" },
-        { name: "nonce", type: "uint256" },
-        { name: "deadline", type: "uint64" },
-      ],
-    };
-
-    const signature = await outsider.signTypedData(
-      domain,
-      types,
-      request
-    );
-
-    const before = await contract.getAgencyProofHistoryLength(caseId, 0);
-
+  it("v11_cannot_close_without_verification", async function () {
     await expect(
-      contract.anchorProofAttestation(request, signature)
-    ).to.be.revertedWith("Agency is not authorized");
-
-    const after = await contract.getAgencyProofHistoryLength(caseId, 0);
-
-    expect(after).to.equal(before);
-    expect(await contract.agencyNonces(outsider.address)).to.equal(0n);
-  });
-
-  it("7. v1.1 Proof version history is preserved", async function () {
-    const latestBlock = await ethers.provider.getBlock("latest");
-
-    if (!latestBlock) {
-      throw new Error("Latest block unavailable");
-    }
-
-    const networkInfo = await ethers.provider.getNetwork();
-
-    const domain = {
-      name: "FullProof",
-      version: "2",
-      chainId: networkInfo.chainId,
-      verifyingContract: await contract.getAddress(),
-    };
-
-    const types = {
-      ProofAttestation: [
-        { name: "caseId", type: "uint256" },
-        { name: "stepId", type: "uint256" },
-        { name: "proofIdHash", type: "bytes32" },
-        { name: "proofVersion", type: "uint256" },
-        { name: "proofHash", type: "bytes32" },
-        { name: "occurredAt", type: "uint64" },
-        { name: "issuedAt", type: "uint64" },
-        { name: "agency", type: "address" },
-        { name: "nonce", type: "uint256" },
-        { name: "deadline", type: "uint64" },
-      ],
-    };
-
-    const proofIdHash = ethers.sha256(
-      ethers.toUtf8Bytes("VERSIONED-PROOF-001")
-    );
-
-    const firstHash = ethers.sha256(
-      ethers.toUtf8Bytes("PROOF-CONTENT-V1")
-    );
-
-    const secondHash = ethers.sha256(
-      ethers.toUtf8Bytes("PROOF-CONTENT-V2")
-    );
-
-    const baseRequest = {
-      caseId,
-      stepId: 0n,
-      proofIdHash,
-      occurredAt: BigInt(latestBlock.timestamp - 120),
-      issuedAt: BigInt(latestBlock.timestamp - 60),
-      agency: telecom.address,
-      deadline: BigInt(latestBlock.timestamp + 3600),
-    };
-
-    const first = {
-      ...baseRequest,
-      proofVersion: 1n,
-      proofHash: firstHash,
-      nonce: 0n,
-    };
-
-    const firstSignature = await telecom.signTypedData(
-      domain, types, first
-    );
-
-    await expect(
-      contract.anchorProofAttestation(first, firstSignature)
-    ).to.emit(contract, "AgencyProofAnchored");
-
-    expect(
-      await contract.getAgencyProofHistoryLength(caseId, 0)
-    ).to.equal(1n);
-
-    const savedFirst = await contract.getAgencyProofRecord(caseId, 0, 0);
-
-    expect(savedFirst.proofIdHash).to.equal(proofIdHash);
-    expect(savedFirst.proofVersion).to.equal(1n);
-    expect(savedFirst.proofHash).to.equal(firstHash);
-
-    const second = {
-      ...baseRequest,
-      proofVersion: 2n,
-      proofHash: secondHash,
-      nonce: await contract.agencyNonces(telecom.address),
-    };
-
-    const secondSignature = await telecom.signTypedData(
-      domain, types, second
-    );
-
-    await expect(
-      contract.anchorProofAttestation(second, secondSignature)
-    ).to.emit(contract, "AgencyProofAnchored");
-
-    expect(
-      await contract.getAgencyProofHistoryLength(caseId, 0)
-    ).to.equal(2n);
-
-    // Older records must remain unchanged.
-    const oldRecord = await contract.getAgencyProofRecord(caseId, 0, 0);
-    const newRecord = await contract.getAgencyProofRecord(caseId, 0, 1);
-
-    expect(oldRecord.proofIdHash).to.equal(proofIdHash);
-    expect(oldRecord.proofVersion).to.equal(1n);
-    expect(oldRecord.proofHash).to.equal(firstHash);
-
-    expect(newRecord.proofIdHash).to.equal(proofIdHash);
-    expect(newRecord.proofVersion).to.equal(2n);
-    expect(newRecord.proofHash).to.equal(secondHash);
-
-    const step = await contract.getStepInfo(caseId, 0);
-    expect(step.status).to.equal(BigInt(STATUS.PENDING));
-  });
-
-  it("8. Cannot close case without Verification", async function () {
-    // No Verification has been recorded for the required steps.
-    await expect(
-      contract.closeCase(caseId, "?? ??")
+      contract.closeCase(caseId, "No verification")
     ).to.be.revertedWith("Cannot close: no verification");
 
     const caseInfo = await contract.cases(caseId);
     expect(caseInfo.status).to.equal(0n);
     expect(caseInfo.closeReason).to.equal("");
   });
-
-
-  it("9. Proof attestations alone cannot close a case", async function () {
-    const networkInfo = await ethers.provider.getNetwork();
-    const latestBlock = await ethers.provider.getBlock("latest");
-
-    if (!latestBlock) {
-      throw new Error("Latest block unavailable");
-    }
-
-    const domain = {
-      name: "FullProof",
-      version: "2",
-      chainId: networkInfo.chainId,
-      verifyingContract: await contract.getAddress(),
-    };
-
-    const types = {
-      ProofAttestation: [
-        { name: "caseId", type: "uint256" },
-        { name: "stepId", type: "uint256" },
-        { name: "proofIdHash", type: "bytes32" },
-        { name: "proofVersion", type: "uint256" },
-        { name: "proofHash", type: "bytes32" },
-        { name: "occurredAt", type: "uint64" },
-        { name: "issuedAt", type: "uint64" },
-        { name: "agency", type: "address" },
-        { name: "nonce", type: "uint256" },
-        { name: "deadline", type: "uint64" },
-      ],
-    };
-
-    const agencies = [
-      { signer: telecom, stepId: 0n, label: "TELECOM" },
-      { signer: cctv, stepId: 1n, label: "CCTV" },
-    ];
-
-    for (const agency of agencies) {
-      const request = {
-        caseId,
-        stepId: agency.stepId,
-        proofIdHash: ethers.sha256(
-          ethers.toUtf8Bytes("PROOF-" + agency.label)
-        ),
-        proofVersion: 1n,
-        proofHash: ethers.sha256(
-          ethers.toUtf8Bytes("EVIDENCE-" + agency.label)
-        ),
-        occurredAt: BigInt(latestBlock.timestamp - 120),
-        issuedAt: BigInt(latestBlock.timestamp - 60),
-        agency: agency.signer.address,
-        nonce: await contract.agencyNonces(agency.signer.address),
-        deadline: BigInt(latestBlock.timestamp + 3600),
-      };
-
-      const signature = await agency.signer.signTypedData(
-        domain,
-        types,
-        request
-      );
-
-      await expect(
-        contract.anchorProofAttestation(request, signature)
-      ).to.emit(contract, "AgencyProofAnchored");
-
-      const step = await contract.getStepInfo(caseId, agency.stepId);
-      expect(step.status).to.equal(BigInt(STATUS.PENDING));
-    }
-
-    // Agency Proofs do not replace Verification and administrator approval.
-    await expect(
-      contract.closeCase(caseId, "Closure without Verification")
-    ).to.be.revertedWith("Cannot close: no verification");
-
-    const caseInfo = await contract.cases(caseId);
-    expect(caseInfo.status).to.equal(0n);
-    expect(caseInfo.closeReason).to.equal("");
-  });
-
-  // ========================================
-  // FullProof v1.1 Claim tests
-  // ========================================
 
   it("10. Claim v1을 블록체인에 정상 기록한다", async function () {
     const claimIdHash = ethers.sha256(
@@ -596,6 +326,57 @@ describe("ChainOfInvestigation - FullProof upgraded contract", function () {
     expect(recordV2.claimHash).to.equal(claimHashV2);
 
     expect(recordV1.claimHash).to.not.equal(recordV2.claimHash);
+  });
+
+
+  it("v11_unregistered_agency_cannot_anchor_proof", async function () {
+    const latestBlock = await ethers.provider.getBlock("latest");
+    if (!latestBlock) throw new Error("Latest block unavailable");
+
+    const request = {
+      caseId,
+      stepId: 0n,
+      proofIdHash: ethers.sha256(ethers.toUtf8Bytes("UNREGISTERED-PROOF")),
+      proofVersion: 1n,
+      proofHash: ethers.sha256(ethers.toUtf8Bytes("UNREGISTERED-CONTENT")),
+      occurredAt: BigInt(latestBlock.timestamp - 120),
+      issuedAt: BigInt(latestBlock.timestamp - 60),
+      agency: outsider.address,
+      nonce: 0n,
+      deadline: BigInt(latestBlock.timestamp + 3600),
+    };
+
+    const networkInfo = await ethers.provider.getNetwork();
+
+    const domain = {
+      name: "FullProof",
+      version: "2",
+      chainId: networkInfo.chainId,
+      verifyingContract: await contract.getAddress(),
+    };
+
+    const types = {
+      ProofAttestation: [
+        { name: "caseId", type: "uint256" },
+        { name: "stepId", type: "uint256" },
+        { name: "proofIdHash", type: "bytes32" },
+        { name: "proofVersion", type: "uint256" },
+        { name: "proofHash", type: "bytes32" },
+        { name: "occurredAt", type: "uint64" },
+        { name: "issuedAt", type: "uint64" },
+        { name: "agency", type: "address" },
+        { name: "nonce", type: "uint256" },
+        { name: "deadline", type: "uint64" },
+      ],
+    };
+
+    const signature = await outsider.signTypedData(domain, types, request);
+
+    await expect(
+      contract.anchorProofAttestation(request, signature)
+    ).to.be.revertedWith("Agency is not authorized");
+
+    expect(await contract.getAgencyProofHistoryLength(caseId, 0)).to.equal(0n);
   });
 
   it("14. 통신사 공식 서명으로 독립 Proof를 기록한다", async function () {
