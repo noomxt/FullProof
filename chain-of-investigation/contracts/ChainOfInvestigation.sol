@@ -30,8 +30,8 @@ contract ChainOfInvestigation is EIP712 {
 
     enum VerificationStatus {
         PENDING,
-        VERIFIED,
-        MISMATCH,
+        SUPPORTED,
+        CONTRADICTED,
         EXPIRING_SOON
     }
 
@@ -1145,23 +1145,23 @@ contract ChainOfInvestigation is EIP712 {
     }
 
     /**
-     * 기관이 전자서명한 Proof를 온체인에 앵커링한다.
-     * msg.sender는 기관 지갑일 수도 있고, admin/relayer일 수도 있다.
-     * 실제 Proof 발행 주체는 EIP-712 서명의 signer로 검증한다.
+     * Deprecated v1.0 entry point. Always reverts.
+     * Use anchorClaim -> anchorProofAttestation -> anchorVerification.
+     * Selector is retained only to reject old clients explicitly.
      */
     function anchorProof(
-        uint256,
-        uint256,
-        bytes32,
-        bytes32,
-        VerificationStatus,
-        uint64,
-        uint64,
-        uint256,
-        address,
-        bytes calldata
+        uint256 /* caseId */,
+        uint256 /* stepId */,
+        bytes32 /* claimHash */,
+        bytes32 /* proofHash */,
+        VerificationStatus /* result */,
+        uint64 /* evidenceTimestamp */,
+        uint64 /* deadline */,
+        uint256 /* nonce */,
+        address /* agency */,
+        bytes calldata /* signature */
     ) external pure {
-        revert("Legacy anchorProof disabled");
+        revert("LEGACY_PROOF_DISABLED: use ProofAttestation and Verification");
     }
 
     // FullProof v1.1 - 기관 독립 Proof 등록

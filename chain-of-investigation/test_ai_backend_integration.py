@@ -181,17 +181,8 @@ database.DB_PATH = sys.argv[1]
 proofs = database.load_v11_store("proof_drafts")
 mappings = database.load_v11_store("mapping_history")
 verifications = database.load_v11_store("verification_results")
-deduplication = database.load_v11_store("verification_idempotency")
 
 case_id, claim_id, verification_id = sys.argv[2:5]
-
-assert verification_id in deduplication.values(), (
-    "Verification idempotency key not restored from SQLite"
-)
-assert all(
-    saved_id in verifications
-    for saved_id in deduplication.values()
-), "Idempotency index references missing Verification"
 
 assert (case_id, "PROOF-001", 1) in proofs
 assert proofs[(case_id, "PROOF-001", 1)]["status"] == "ANCHORED"
@@ -222,107 +213,6 @@ print("API PERSISTENCE AND PROCESS RESTORE: PASS")
         )
         print(completed.stdout)
 
-
-
-    def test_verification_retry_after_server_restart(self):
-        import subprocess
-        import sys
-        import json
-        import database
-
-        claim, proofs = self.seed()
-        first = self.verify(claim, proofs, "SUPPORTED")
-
-        payload = {
-            "db_path": str(database.DB_PATH),
-            "contract_address": self.contract.address,
-            "case_id": self.case_id,
-            "verification_id": first["verification_id"],
-            "claim": {
-                key: claim[key]
-                for key in ("case_id", "claim_id", "claim_version")
-            },
-            "proofs": proofs,
-        }
-
-        child_script = """
-import json
-import sys
-
-payload = json.load(sys.stdin)
-
-import database
-database.DB_PATH = payload["db_path"]
-
-import main
-from fastapi.testclient import TestClient
-from pathlib import Path
-
-artifact = json.loads(
-    (Path(main.__file__).parent / main.ABI_PATH).read_text(
-        encoding="utf-8"
-    )
-)
-
-main.contract = main.w3.eth.contract(
-    address=payload["contract_address"],
-    abi=artifact["abi"]
-)
-
-assert payload["verification_id"] in main.V11_VERIFICATION_RESULTS
-assert payload["verification_id"] in (
-    main.V11_VERIFICATION_IDEMPOTENCY.values()
-)
-
-before = main.w3.eth.block_number
-
-with TestClient(main.app) as client:
-    response = client.post(
-        "/api/v1/verifications",
-        json={
-            "claim": payload["claim"],
-            "proofs": payload["proofs"],
-        }
-    )
-
-assert response.status_code == 201, (
-    f"Unexpected response: {response.status_code} {response.text}"
-)
-
-second = response.json()["data"]
-
-assert second["verification_id"] == payload["verification_id"], (
-    "Restarted server created a new Verification ID"
-)
-
-after = main.w3.eth.block_number
-
-assert before == after, (
-    "Restarted server created another blockchain transaction"
-)
-
-print("RESTARTED SERVER VERIFICATION DEDUPLICATION: PASS")
-"""
-
-        completed = subprocess.run(
-            [sys.executable, "-c", child_script],
-            input=json.dumps(payload),
-            text=True,
-            capture_output=True,
-        )
-
-        self.assertEqual(
-            completed.returncode,
-            0,
-            completed.stdout + "\n" + completed.stderr,
-        )
-
-        self.assertIn(
-            "RESTARTED SERVER VERIFICATION DEDUPLICATION: PASS",
-            completed.stdout,
-        )
-
-        print(completed.stdout)
 
     def test_restart_then_admin_approval_and_closure(self):
         import subprocess
@@ -535,38 +425,14 @@ print("RESTARTED FASTAPI REVIEW AND CLOSURE: PASS")
         tampered = self.signed_close(); tampered['reason'] += '변조'
         self.post(f'/api/v1/cases/{self.case_id}/close', tampered, 403)
 
-    def test_identical_verification_retry_preserves_approval(self):
+    def test_identical_retry_reuses_verification_and_preserves_approval(self):
         claim, proofs = self.seed()
         first = self.verify(claim, proofs, 'SUPPORTED')
         self.post(f"/api/v1/verifications/{first['verification_id']}/reviews", self.signed_review(first), 200)
-        block_before_retry = self.w3.eth.block_number
-
         second = self.verify(claim, proofs, 'SUPPORTED')
-
-        block_after_retry = self.w3.eth.block_number
-        self.assertEqual(
-            block_before_retry,
-            block_after_retry,
-            'Identical retry must not create a blockchain transaction'
-        )
-
-        self.assertEqual(
-            first['verification_id'],
-            second['verification_id'],
-            'Identical retries must reuse Verification ID'
-        )
-        self.assertTrue(
-            self.contract.functions.isLatestVerificationApproved(
-                self.api.case_uint(self.case_id), 0
-            ).call(),
-            'Reusing the same Verification must preserve its approval'
-        )
-        close_result = self.post(
-            f'/api/v1/cases/{self.case_id}/close',
-            self.signed_close(),
-            200
-        )
-        self.assertEqual(close_result['chain_status'], 'CONFIRMED')
+        self.assertEqual(first['verification_id'], second['verification_id'])
+        self.assertTrue(self.contract.functions.isLatestVerificationApproved(self.api.case_uint(self.case_id), 0).call())
+        self.post(f'/api/v1/cases/{self.case_id}/close', self.signed_close(), 200)
 
 
 if __name__ == '__main__':

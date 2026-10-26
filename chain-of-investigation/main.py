@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from web3 import Web3
@@ -54,6 +54,16 @@ except ImportError:
 
 app = FastAPI(title="FullProof API", version="2.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5500", "http://127.0.0.1:5500",], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+# Mentor follow-up: old agency-signed-verdict routes are no longer executable.
+@app.middleware("http")
+async def disable_legacy_verdict_routes(request, call_next):
+    path=request.url.path
+    retired = path in {"/api/v1/cases/verify", "/api/v1/cases/proofs/anchor"} or path.endswith("/sync") or path.endswith("/recover-proof")
+    if request.method == "POST" and retired:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=410, content={"success":False,"data":None,"error":{"code":"LEGACY_ROUTE_DISABLED","message":"구버전 기관 판정 서명 경로는 종료되었습니다. ProofAttestation과 Verification API를 사용하세요."}})
+    return await call_next(request)
+
 ROOT = Path(__file__).resolve().parent
 ABI_PATH = ROOT / "artifacts/contracts/ChainOfInvestigation.sol/ChainOfInvestigation.json"
 w3 = Web3(Web3.HTTPProvider(os.getenv("RPC_URL", "http://127.0.0.1:8545")))
@@ -63,8 +73,8 @@ if ABI_PATH.exists() and CONTRACT_ADDRESS:
     with ABI_PATH.open(encoding="utf-8") as f:
         contract = w3.eth.contract(address=Web3.to_checksum_address(CONTRACT_ADDRESS), abi=json.load(f)["abi"])
 
-STATUS = {"PENDING": 0, "VERIFIED": 1, "SUPPORTED": 1, "MISMATCH": 2, "CONTRADICTED": 2, "EXPIRING_SOON": 3}
-STATUS_REVERSE = {0: "PENDING", 1: "VERIFIED", 2: "MISMATCH", 3: "EXPIRING_SOON"}
+STATUS = {"PENDING": 0, "SUPPORTED": 1, "CONTRADICTED": 2, "EXPIRING_SOON": 3}
+STATUS_REVERSE = {0: "PENDING", 1: "SUPPORTED", 2: "CONTRADICTED", 3: "EXPIRING_SOON"}
 PROOF_TYPES = {"Proof": [
     {"name": "caseId", "type": "uint256"}, {"name": "stepId", "type": "uint256"},
     {"name": "claimHash", "type": "bytes32"}, {"name": "proofHash", "type": "bytes32"},
@@ -83,6 +93,38 @@ cases_db = load_cases()
 def require_chain():
     if not contract or not w3.is_connected() or not w3.eth.get_code(contract.address):
         raise HTTPException(503, "Blockchain unavailable, contract not deployed, or ABI/address not configured")
+
+@app.get("/api/v1/system/status")
+def get_v11_system_status():
+    chain_available = False
+
+    try:
+        chain_available = bool(
+            contract is not None
+            and w3.is_connected()
+            and w3.eth.get_code(contract.address)
+        )
+    except Exception:
+        chain_available = False
+
+    ai_key_configured = bool(
+        os.getenv("GEMINI_API_KEY")
+    )
+
+    return v11_success({
+        "ai": {
+            "is_simulated": False,
+            "key_configured": ai_key_configured,
+        },
+        "chain": {
+            "available": chain_available,
+        },
+        "capabilities": {
+            "admin_review": chain_available,
+            "close_case": chain_available,
+        },
+    })
+
 
 def sender():
     accounts = w3.eth.accounts
@@ -650,8 +692,9 @@ def anchor_v11_verification(result):
         ).hexdigest()
     )
 
-    tx_hash = confirmed(
-        contract.functions.anchorVerification(
+    from mentor_support import stage_result, note_submission
+    stage_result(result)
+    tx = contract.functions.anchorVerification(
             case_uint(result["case_id"]),
             result["step_id"],
             verification_id_hash,
@@ -667,7 +710,8 @@ def anchor_v11_verification(result):
         ).transact({
             "from": verification_sender()
         })
-    )
+    note_submission(tx)
+    tx_hash = confirmed(tx)
 
     return {
         "verification_id": result["verification_id"],
@@ -1416,9 +1460,8 @@ def get_agency_proof_history(case_id: str, step_id: int):
 
 
 
-@app.post("/api/v1/cases/verify")
+@app.post("/api/v1/cases/verify", include_in_schema=False)
 def verify_and_anchor_step(data: VerifyRequestSchema):
-    raise HTTPException(410, "Legacy verification endpoint disabled; use POST /api/v1/verifications")
     require_chain()
     case = cases_db.get(data.case_id)
     if not case:
@@ -1449,9 +1492,8 @@ def verify_and_anchor_step(data: VerifyRequestSchema):
     return {"case_id": data.case_id, "step_id": data.step_id, "status": STATUS_REVERSE[result], "reason_detail": reason, "claim_hash": step["claim_hash"], "proof_hash": step["proof_hash"], "signer": recovered, "tx_hash": tx}
 
 
-@app.post("/api/v1/cases/proofs/anchor")
+@app.post("/api/v1/cases/proofs/anchor", include_in_schema=False)
 def anchor_signed_proof(data: AnchorProofSchema):
-    raise HTTPException(410, "Legacy Proof endpoint disabled; use POST /api/v1/proofs/anchor")
     require_chain()
 
     # 1. 사건과 수사 단계 확인
@@ -1719,7 +1761,7 @@ def anchor_signed_proof(data: AnchorProofSchema):
     }
 
 
-@app.post("/api/v1/cases/{case_id}/steps/{step_id}/sync")
+@app.post("/api/v1/cases/{case_id}/steps/{step_id}/sync", include_in_schema=False)
 def sync_step_from_blockchain(case_id: str, step_id: int):
     require_chain()
 
@@ -2065,16 +2107,12 @@ def get_case_checkpoints(case_id: str):
     }
 
 
-@app.post("/api/v1/cases/{case_id}/steps/{step_id}/recover-proof")
+@app.post("/api/v1/cases/{case_id}/steps/{step_id}/recover-proof", include_in_schema=False)
 def recover_proof(
     case_id: str,
     step_id: int,
     data: RecoverProofSchema
 ):
-    raise HTTPException(
-        410,
-        "Legacy Proof recovery disabled in v1.1"
-    )
     require_chain()
 
     # 1. SQLite에 사건과 수사 단계가 존재하는지 확인
@@ -2244,13 +2282,6 @@ from uuid import uuid4
 # Not persistent across server restart or multiple workers.
 V11_MAPPING_HISTORY = load_v11_store("mapping_history")
 V11_VERIFICATION_RESULTS = load_v11_store("verification_results")
-
-# Verification retry deduplication (single-process MVP).
-from threading import RLock as _V11RLock
-V11_VERIFICATION_LOCK = _V11RLock()
-V11_VERIFICATION_IDEMPOTENCY = load_v11_store(
-    "verification_idempotency"
-)
 
 
 def v11_now():
@@ -2658,8 +2689,7 @@ class V11VerificationRequest(BaseModel):
     )
 
 
-@app.post("/api/v1/verifications", status_code=201)
-def create_v11_verification(
+def build_v11_verification_inputs(
     data: V11VerificationRequest
 ):
     from copy import deepcopy
@@ -2739,97 +2769,38 @@ def create_v11_verification(
         "registered_policy_hash": v11_sha256(POLICY),
     }
 
-    # Fingerprint only server-resolved references and mapping history.
-    # A changed Claim, Proof, policy, or mapping produces a new key.
-    proof_refs_for_key = sorted(
-        [
-            {
-                "proof_id": p["proof_id"],
-                "proof_version": p["proof_version"],
-                "proof_hash": p["proof_hash"],
-            }
-            for p in server_proofs
-        ],
-        key=lambda p: (p["proof_id"], p["proof_version"]),
-    )
-    request_fingerprint = v11_sha256({
-        "schema_version": "1.1",
-        "case_id": case_id,
-        "step_id": step_id,
-        "claim_id": claim_id,
-        "claim_version": supplied_version,
-        "claim_hash": claim["claim_hash"],
-        "structured_claim": claim["structured_claim"],
-        "proof_refs": proof_refs_for_key,
-        "mappings": safe_mappings,
-        "policy_hash": validated_inputs["registered_policy_hash"],
-    })
+    return validated_inputs
 
-    # Serialize check -> verify -> anchor -> persist in one process.
-    with V11_VERIFICATION_LOCK:
-        existing_id = V11_VERIFICATION_IDEMPOTENCY.get(
-            request_fingerprint
-        )
-        existing = V11_VERIFICATION_RESULTS.get(existing_id)
 
-        if (
-            existing
-            and existing.get("processing_status") == "COMPLETED"
-            and existing.get("verification_tx_hash")
-        ):
-            return v11_success(existing)
+def current_core():
+    import sys
+    return sys.modules[__name__]
 
-        # This validates Claim/Proof on-chain and reconstructs
-        # proof_validation internally before anchoring.
-        result = process_v11_verification(validated_inputs)
 
-        verification_id = result.get("verification_id")
-        if verification_id:
-            V11_VERIFICATION_RESULTS[verification_id] = result
-            save_v11_store(
-                "verification_results", V11_VERIFICATION_RESULTS
-            )
+@app.post("/api/v1/verifications", status_code=201)
+def create_v11_verification(data: V11VerificationRequest):
+    from mentor_support import create_request, sync_result
+    core=current_core()
+    return sync_result(create_request(build_v11_verification_inputs(data),core),core)
 
-            if (
-                result.get("processing_status") == "COMPLETED"
-                and result.get("verification_tx_hash")
-            ):
-                V11_VERIFICATION_IDEMPOTENCY[
-                    request_fingerprint
-                ] = verification_id
-                save_v11_store(
-                    "verification_idempotency",
-                    V11_VERIFICATION_IDEMPOTENCY,
-                )
 
-    return v11_success(result)
+@app.post("/api/v1/verification-requests", status_code=202)
+def start_v11_verification(data: V11VerificationRequest, background: BackgroundTasks):
+    from mentor_support import create_request
+    return v11_success(create_request(build_v11_verification_inputs(data),current_core(),background))
 
-@app.get("/api/v1/verifications/{verification_id}")
-def get_v11_verification(verification_id: str):
-    result = V11_VERIFICATION_RESULTS.get(verification_id)
 
-    if result is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Verification not found"
-        )
+@app.get("/api/v1/verification-requests/{verification_id}")
+def get_v11_verification_request(verification_id: str):
+    from mentor_support import request_status
+    return v11_success(request_status(verification_id,current_core()))
 
-    fields = (
-        "verification_id",
-        "case_id",
-        "step_id",
-        "processing_status",
-        "verdict",
-        "verification_hash",
-        "verification_tx_hash",
-        "policy_hash",
-    )
 
-    return v11_success({
-        key: result[key]
-        for key in fields
-        if key in result
-    })
+@app.get("/api/v1/verifications/{verification_id}/integrity-data")
+def get_v11_integrity_data(verification_id: str):
+    from mentor_support import integrity_data
+    return v11_success(integrity_data(verification_id,current_core()))
+
 
 # ------------------------------------------------------------
 # C. Administrator review request validation
