@@ -1,0 +1,119 @@
+{
+  "claim": {
+    "schema_version": "1.1",
+    "case_id": "CASE-001",
+    "step_id": 0,
+    "claim_id": "CLAIM-001",
+    "claim_version": 1,
+    "claim_text": "SUBJECT-01 통화 성공",
+    "claim_hash": "0x4fe4ad2300607ed1e2f97c8dcf821e0541222692baabf8bdb572a64bede2d9cd",
+    "structured_claim": {
+      "schema_version": "1.1",
+      "claim_id": "CLAIM-001",
+      "claim_version": 1,
+      "extraction_status": "COMPLETED",
+      "model_name": "offline-fixture",
+      "prompt_version": "fixture-v1",
+      "review_required": false,
+      "actions": [
+        {
+          "action_type": "PHONE_CALL",
+          "action_result": "SUCCESS",
+          "target_id": "SUBJECT-01",
+          "occurred_at": "2026-10-18T05:00:00Z",
+          "source_excerpt": "SUBJECT-01 통화 성공"
+        }
+      ]
+    }
+  },
+  "proofs": [
+    {
+      "content": {
+        "schema_version": "1.1",
+        "proof_id": "PROOF-001",
+        "proof_version": 1,
+        "case_id": "CASE-001",
+        "step_id": 0,
+        "issuer_agency_id": "TELECOM-001",
+        "agency_address": "0x1111111111111111111111111111111111111111",
+        "proof_type": "CALL_LOG",
+        "call_id": "CALL-001",
+        "target_id": "SUBJECT-01",
+        "action_type": "PHONE_CALL",
+        "proof_occurred_at": "2026-10-18T05:00:00Z",
+        "proof_issued_at": "2026-10-18T05:30:00Z",
+        "result": "CALL_CONNECTED",
+        "source_sha256": "0x4c8c4a948270f2473f600d512ba443f691f00fc73bc1e06e94b0d6518d0b8cf7"
+      },
+      "source_text": "{\"call_id\": \"CALL-001\", \"target_id\": \"SUBJECT-01\", \"note\": \"원본\\n공백 유지\"}",
+      "stored_proof_hash": "0x6226344d1b5d95fed2a94c70e524b83e9106cc22d156518402616da1b71d2103"
+    }
+  ],
+  "verification": {
+    "schema_version": "1.1",
+    "verification_id": "VERIFY-INTEGRITY-TEST",
+    "case_id": "CASE-001",
+    "step_id": 0,
+    "claim_ref": {
+      "claim_id": "CLAIM-001",
+      "claim_version": 1,
+      "claim_hash": "0x4fe4ad2300607ed1e2f97c8dcf821e0541222692baabf8bdb572a64bede2d9cd"
+    },
+    "proof_refs": [
+      {
+        "proof_id": "PROOF-001",
+        "proof_version": 1,
+        "proof_hash": "0x6226344d1b5d95fed2a94c70e524b83e9106cc22d156518402616da1b71d2103"
+      }
+    ],
+    "processing_status": "COMPLETED",
+    "verdict": "SUPPORTED",
+    "conflicts": [],
+    "missing_information": [],
+    "reason_text": "기관 Proof가 필수 비교 조건과 주장을 뒷받침합니다.",
+    "evidence_refs": [
+      "PROOF-001"
+    ],
+    "review_required": false,
+    "decision_policy_version": "policy-v1",
+    "policy_hash": "0x7f1088c36dc3ce97d3a67991e76b7fc3a3b0e48b1ef1eaaf5e6477af88268976",
+    "proof_refs_hash": "0x0ce0dbc0286d8a935afc6ee033234a06e59eacfae3d4e8f5a96c4c2a8fe050f0",
+    "verification_tx_hash": null,
+    "verification_hash": "0xdde56a4c7df3f455288e0709b67edf69c964ca345f633fd3fb7654a5af09ac46"
+  },
+  "policy": {
+    "schema_version": "1.1",
+    "policy_id": "CALL_VERIFICATION",
+    "policy_version": "policy-v1",
+    "required_fields": [
+      "action_result",
+      "action_type",
+      "target_id"
+    ],
+    "time_tolerance_seconds": 600,
+    "proof_mapping_required": true,
+    "semantic_analysis_required": false
+  },
+  "chain_id": 31337,
+  "contract_address": "0x1111111111111111111111111111111111111111",
+  "onchain": {
+    "claim_hash": "0x4fe4ad2300607ed1e2f97c8dcf821e0541222692baabf8bdb572a64bede2d9cd",
+    "proofs": [
+      {
+        "proof_id": "PROOF-001",
+        "proof_version": 1,
+        "proof_hash": "0x6226344d1b5d95fed2a94c70e524b83e9106cc22d156518402616da1b71d2103"
+      }
+    ],
+    "verification": {
+      "verification_id_hash": "0x5aad7a3117fb427d79d3ec44d85c8d1beb4606ececcf2ae073cf34b69aa29046",
+      "claim_id_hash": "0x9602d6e7d98abc86cd347e95e385717945d6d8ae134072299c2ca0d10fad3a7d",
+      "claim_version": 1,
+      "claim_hash": "0x4fe4ad2300607ed1e2f97c8dcf821e0541222692baabf8bdb572a64bede2d9cd",
+      "proof_refs_hash": "0x0ce0dbc0286d8a935afc6ee033234a06e59eacfae3d4e8f5a96c4c2a8fe050f0",
+      "policy_hash": "0x7f1088c36dc3ce97d3a67991e76b7fc3a3b0e48b1ef1eaaf5e6477af88268976",
+      "verification_hash": "0xdde56a4c7df3f455288e0709b67edf69c964ca345f633fd3fb7654a5af09ac46",
+      "verdict": "SUPPORTED"
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "chain_id": 31337,
+  "contract": "0x720472c8ce72c2A2D711333e064ABD3E6BbEAdd3",
+  "live_ai": true,
+  "scenarios": [
+    {
+      "case": "AI-INTEGRATION-4fca41883de6",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0x32ea65665e0a41822001a61bda4ac981ba0748c2e2c9f37c41af2d2327802826",
+      "tx_hash": "897da26beb1bec198b0460210da3642a6fa2c7203985272c018fae97d87fea33",
+      "block_number": 119
+    },
+    {
+      "case": "AI-INTEGRATION-6bfd9f891898",
+      "verdict": "CONTRADICTED",
+      "verification_hash": "0x028f96ecbe334b463f562a3d7a50b3e02e45e4b6009f0d4ee1ea6546a57eef45",
+      "tx_hash": "a752fe5c5e08cbb597d8d800451f41ac5ac275252d07f49277bc1679f04b0716",
+      "block_number": 177
+    },
+    {
+      "case": "AI-INTEGRATION-5fd876153a53",
+      "verdict": "INSUFFICIENT",
+      "verification_hash": "0xc49655b6b45bd6049f9d8bbbb6d381375f0e9e6bbee72cd4ad08b59fa6304627",
+      "tx_hash": "636ac9c43af3fcb1943bd671edc6c35ebb791739895e6986f4edb744485bd3e1",
+      "block_number": 181
+    }
+  ],
+  "extractions": [
+    {
+      "case": "AI-INTEGRATION-4fca41883de6",
+      "status": "SUCCESS",
+      "error_code": null,
+      "model": "gemini-3.8-flash"
+    },
+    {
+      "case": "AI-INTEGRATION-6bfd9f891898",
+      "status": "SUCCESS",
+      "error_code": null,
+      "model": "gemini-3.8-flash"
+    },
+    {
+      "case": "AI-INTEGRATION-5fd876153a53",
+      "status": "SUCCESS",
+      "error_code": null,
+      "model": "gemini-3.8-flash"
+    }
+  ]
+}

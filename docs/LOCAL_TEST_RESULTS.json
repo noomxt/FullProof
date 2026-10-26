@@ -1,0 +1,30 @@
+{
+  "pass": true,
+  "scope": "Chromium UI + official API + real Hardhat, injected EIP-1193 wallet, fixed AI extraction (no Gemini)",
+  "signatures": [
+    "eth_signTypedData_v4",
+    "personal_sign",
+    "personal_sign",
+    "personal_sign",
+    "personal_sign",
+    "eth_signTypedData_v4",
+    "personal_sign",
+    "eth_signTypedData_v4",
+    "personal_sign"
+  ],
+  "case_count": 4,
+  "checks": [
+    "supported→ACK→ACCEPTED→close",
+    "wallet rejection→pending mapping reuse",
+    "conflict blocked close",
+    "no Proof insufficient",
+    "no CALL_REF insufficient",
+    "reload history",
+    "mobile390 no overflow",
+    "real receipt queries",
+    "browser SHA-256/JCS and onchain comparison",
+    "identical UI retry reuses Verification ID",
+    "official GET Verification result endpoint"
+  ],
+  "page_errors": []
+}

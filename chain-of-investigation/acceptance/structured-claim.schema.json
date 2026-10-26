@@ -1,0 +1,138 @@
+{
+  "$defs": {
+    "ClaimActionV11": {
+      "additionalProperties": false,
+      "properties": {
+        "action_type": {
+          "enum": [
+            "PHONE_CALL",
+            "CCTV_REQUEST",
+            "CCTV_REVIEW",
+            "LOCATION_REQUEST",
+            "UNKNOWN"
+          ],
+          "title": "Action Type",
+          "type": "string"
+        },
+        "action_result": {
+          "enum": [
+            "SUCCESS",
+            "FAIL",
+            "UNKNOWN"
+          ],
+          "title": "Action Result",
+          "type": "string"
+        },
+        "target_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Target Id"
+        },
+        "occurred_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Occurred At"
+        },
+        "source_excerpt": {
+          "title": "Source Excerpt",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action_type",
+        "action_result",
+        "target_id",
+        "occurred_at",
+        "source_excerpt"
+      ],
+      "title": "ClaimActionV11",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Public section 4.2 envelope; provider response is an internal schema.",
+  "properties": {
+    "schema_version": {
+      "const": "1.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "claim_id": {
+      "minLength": 1,
+      "title": "Claim Id",
+      "type": "string"
+    },
+    "claim_version": {
+      "minimum": 1,
+      "title": "Claim Version",
+      "type": "integer"
+    },
+    "extraction_status": {
+      "enum": [
+        "PENDING",
+        "COMPLETED",
+        "NEEDS_REVIEW",
+        "FAILED"
+      ],
+      "title": "Extraction Status",
+      "type": "string"
+    },
+    "actions": {
+      "items": {
+        "$ref": "#/$defs/ClaimActionV11"
+      },
+      "title": "Actions",
+      "type": "array"
+    },
+    "model_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Model Name"
+    },
+    "prompt_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Prompt Version"
+    },
+    "review_required": {
+      "title": "Review Required",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schema_version",
+    "claim_id",
+    "claim_version",
+    "extraction_status",
+    "actions",
+    "model_name",
+    "prompt_version",
+    "review_required"
+  ],
+  "title": "StructuredClaimV11",
+  "type": "object"
+}

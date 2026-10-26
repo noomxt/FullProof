@@ -1,0 +1,1662 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FullProof API",
+    "version": "2.0.0"
+  },
+  "paths": {
+    "/api/v1/proofs/drafts": {
+      "post": {
+        "summary": "Create Proof Draft",
+        "operationId": "create_proof_draft_api_v1_proofs_drafts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProofDraftSchema"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cases/{case_id}/chain-status": {
+      "get": {
+        "summary": "Get Case Chain Status",
+        "operationId": "get_case_chain_status_api_v1_cases__case_id__chain_status_get",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cases": {
+      "get": {
+        "summary": "Get All Cases",
+        "operationId": "get_all_cases_api_v1_cases_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create Case",
+        "operationId": "create_case_api_v1_cases_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaseCreateSchema"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cases/{case_id}": {
+      "get": {
+        "summary": "Get Case Detail",
+        "operationId": "get_case_detail_api_v1_cases__case_id__get",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cases/{case_id}/steps": {
+      "post": {
+        "summary": "Add Case Step",
+        "operationId": "add_case_step_api_v1_cases__case_id__steps_post",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StepCreateSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cases/{case_id}/claims": {
+      "post": {
+        "summary": "Create Claim",
+        "operationId": "create_claim_api_v1_cases__case_id__claims_post",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClaimCreateSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cases/{case_id}/steps/{step_id}/claims": {
+      "get": {
+        "summary": "Get Claim History",
+        "operationId": "get_claim_history_api_v1_cases__case_id__steps__step_id__claims_get",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/proofs/anchor": {
+      "post": {
+        "summary": "Anchor Agency Proof",
+        "operationId": "anchor_agency_proof_api_v1_proofs_anchor_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProofAttestationSchema"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cases/{case_id}/steps/{step_id}/agency-proofs": {
+      "get": {
+        "summary": "Get Agency Proof History",
+        "operationId": "get_agency_proof_history_api_v1_cases__case_id__steps__step_id__agency_proofs_get",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cases/verify": {
+      "post": {
+        "summary": "Verify And Anchor Step",
+        "operationId": "verify_and_anchor_step_api_v1_cases_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyRequestSchema"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cases/proofs/anchor": {
+      "post": {
+        "summary": "Anchor Signed Proof",
+        "operationId": "anchor_signed_proof_api_v1_cases_proofs_anchor_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnchorProofSchema"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cases/{case_id}/steps/{step_id}/sync": {
+      "post": {
+        "summary": "Sync Step From Blockchain",
+        "operationId": "sync_step_from_blockchain_api_v1_cases__case_id__steps__step_id__sync_post",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cases/{case_id}/steps/{step_id}/proof-history": {
+      "get": {
+        "summary": "Proof History",
+        "operationId": "proof_history_api_v1_cases__case_id__steps__step_id__proof_history_get",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cases/{case_id}/family-progress": {
+      "get": {
+        "summary": "Get Family Progress",
+        "operationId": "get_family_progress_api_v1_cases__case_id__family_progress_get",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cases/{case_id}/close": {
+      "post": {
+        "summary": "Close Case Endpoint",
+        "operationId": "close_case_endpoint_api_v1_cases__case_id__close_post",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V11SignedCloseCaseSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/blockchain/checkpoints/{checkpoint_id}": {
+      "get": {
+        "summary": "Check Blockchain Checkpoint",
+        "operationId": "check_blockchain_checkpoint_api_v1_blockchain_checkpoints__checkpoint_id__get",
+        "parameters": [
+          {
+            "name": "checkpoint_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Checkpoint Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cases/{case_id}/checkpoints": {
+      "get": {
+        "summary": "Get Case Checkpoints",
+        "operationId": "get_case_checkpoints_api_v1_cases__case_id__checkpoints_get",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/cases/{case_id}/steps/{step_id}/recover-proof": {
+      "post": {
+        "summary": "Recover Proof",
+        "operationId": "recover_proof_api_v1_cases__case_id__steps__step_id__recover_proof_post",
+        "parameters": [
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          },
+          {
+            "name": "step_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Step Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecoverProofSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/claims/{claim_id}/extract": {
+      "post": {
+        "summary": "Extract Stored V11 Claim",
+        "operationId": "extract_stored_v11_claim_api_v1_claims__claim_id__extract_post",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Claim Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V11ExtractionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/claims/{claim_id}/proof-mappings": {
+      "post": {
+        "summary": "Create V11 Mapping",
+        "operationId": "create_v11_mapping_api_v1_claims__claim_id__proof_mappings_post",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Claim Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V11MappingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/claims/{claim_id}/proof-mappings/{mapping_id}/confirm": {
+      "post": {
+        "summary": "Confirm V11 Mapping",
+        "operationId": "confirm_v11_mapping_api_v1_claims__claim_id__proof_mappings__mapping_id__confirm_post",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Claim Id"
+            }
+          },
+          {
+            "name": "mapping_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Mapping Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V11MappingConfirmRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/verifications": {
+      "post": {
+        "summary": "Create V11 Verification",
+        "operationId": "create_v11_verification_api_v1_verifications_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V11VerificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/verifications/{verification_id}": {
+      "get": {
+        "summary": "Get V11 Verification",
+        "operationId": "get_v11_verification_api_v1_verifications__verification_id__get",
+        "parameters": [
+          {
+            "name": "verification_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Verification Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/verifications/{verification_id}/reviews": {
+      "post": {
+        "summary": "Create V11 Review",
+        "operationId": "create_v11_review_api_v1_verifications__verification_id__reviews_post",
+        "parameters": [
+          {
+            "name": "verification_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Verification Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V11SignedReviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AnchorProofSchema": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "step_id": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Step Id"
+          },
+          "claim_text": {
+            "type": "string",
+            "title": "Claim Text"
+          },
+          "proof_text": {
+            "type": "string",
+            "title": "Proof Text"
+          },
+          "agency": {
+            "type": "string",
+            "title": "Agency"
+          },
+          "claim_hash": {
+            "type": "string",
+            "title": "Claim Hash"
+          },
+          "proof_hash": {
+            "type": "string",
+            "title": "Proof Hash"
+          },
+          "result": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 0.0,
+            "title": "Result"
+          },
+          "evidence_timestamp": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Evidence Timestamp"
+          },
+          "nonce": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Nonce"
+          },
+          "deadline": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Deadline"
+          },
+          "signature": {
+            "type": "string",
+            "title": "Signature"
+          }
+        },
+        "type": "object",
+        "required": [
+          "case_id",
+          "step_id",
+          "claim_text",
+          "proof_text",
+          "agency",
+          "claim_hash",
+          "proof_hash",
+          "result",
+          "evidence_timestamp",
+          "nonce",
+          "deadline",
+          "signature"
+        ],
+        "title": "AnchorProofSchema"
+      },
+      "CaseCreateSchema": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "default": "신규 수사 사건"
+          }
+        },
+        "type": "object",
+        "required": [
+          "case_id"
+        ],
+        "title": "CaseCreateSchema"
+      },
+      "ClaimCreateSchema": {
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Claim Id"
+          },
+          "claim_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Claim Version"
+          },
+          "step_id": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Step Id"
+          },
+          "claim_text": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Claim Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim_id",
+          "claim_version",
+          "step_id",
+          "claim_text"
+        ],
+        "title": "ClaimCreateSchema"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ProofAttestationSchema": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "step_id": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Step Id"
+          },
+          "proof_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Proof Id"
+          },
+          "proof_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Proof Version"
+          },
+          "proof_hash": {
+            "type": "string",
+            "title": "Proof Hash"
+          },
+          "occurred_at": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Occurred At"
+          },
+          "issued_at": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Issued At"
+          },
+          "agency": {
+            "type": "string",
+            "title": "Agency"
+          },
+          "nonce": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Nonce"
+          },
+          "deadline": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Deadline"
+          },
+          "signature": {
+            "type": "string",
+            "title": "Signature"
+          }
+        },
+        "type": "object",
+        "required": [
+          "case_id",
+          "step_id",
+          "proof_id",
+          "proof_version",
+          "proof_hash",
+          "occurred_at",
+          "issued_at",
+          "agency",
+          "nonce",
+          "deadline",
+          "signature"
+        ],
+        "title": "ProofAttestationSchema"
+      },
+      "ProofDraftSchema": {
+        "properties": {
+          "proof_content": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Proof Content"
+          },
+          "source_text": {
+            "type": "string",
+            "title": "Source Text"
+          },
+          "nonce": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Nonce"
+          },
+          "deadline": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Deadline"
+          }
+        },
+        "type": "object",
+        "required": [
+          "proof_content",
+          "source_text",
+          "nonce",
+          "deadline"
+        ],
+        "title": "ProofDraftSchema"
+      },
+      "RecoverProofSchema": {
+        "properties": {
+          "tx_hash": {
+            "type": "string",
+            "title": "Tx Hash"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tx_hash"
+        ],
+        "title": "RecoverProofSchema"
+      },
+      "StepCreateSchema": {
+        "properties": {
+          "step_name": {
+            "type": "string",
+            "title": "Step Name"
+          },
+          "is_required": {
+            "type": "boolean",
+            "title": "Is Required",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "step_name"
+        ],
+        "title": "StepCreateSchema"
+      },
+      "V11ExtractionRequest": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "claim_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Claim Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "case_id",
+          "claim_version"
+        ],
+        "title": "V11ExtractionRequest"
+      },
+      "V11MappingConfirmRequest": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "claim_text": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Claim Text"
+          },
+          "evidence_source_sha256": {
+            "type": "string",
+            "title": "Evidence Source Sha256"
+          },
+          "evidence_note": {
+            "type": "string",
+            "minLength": 10,
+            "title": "Evidence Note"
+          },
+          "signer_address": {
+            "type": "string",
+            "title": "Signer Address"
+          },
+          "signature": {
+            "type": "string",
+            "title": "Signature"
+          }
+        },
+        "type": "object",
+        "required": [
+          "case_id",
+          "claim_text",
+          "evidence_source_sha256",
+          "evidence_note",
+          "signer_address",
+          "signature"
+        ],
+        "title": "V11MappingConfirmRequest"
+      },
+      "V11MappingRequest": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "step_id": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Step Id"
+          },
+          "claim_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Claim Version"
+          },
+          "claim_text": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Claim Text"
+          },
+          "proof_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Proof Id"
+          },
+          "proof_version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Proof Version"
+          },
+          "issuer_agency_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Issuer Agency Id"
+          },
+          "call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Call Id"
+          },
+          "mapping_method": {
+            "type": "string",
+            "title": "Mapping Method",
+            "default": "MANUAL_SELECTION"
+          },
+          "mapping_status": {
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "AMBIGUOUS",
+              "REJECTED"
+            ],
+            "title": "Mapping Status",
+            "default": "PENDING"
+          }
+        },
+        "type": "object",
+        "required": [
+          "case_id",
+          "step_id",
+          "claim_version",
+          "claim_text",
+          "proof_id",
+          "proof_version",
+          "issuer_agency_id"
+        ],
+        "title": "V11MappingRequest"
+      },
+      "V11SignedCloseCaseSchema": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "default": "수사 완료"
+          },
+          "signer_address": {
+            "type": "string",
+            "title": "Signer Address"
+          },
+          "signature": {
+            "type": "string",
+            "title": "Signature"
+          },
+          "nonce": {
+            "type": "string",
+            "minLength": 16,
+            "title": "Nonce"
+          },
+          "deadline": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Deadline"
+          }
+        },
+        "type": "object",
+        "required": [
+          "signer_address",
+          "signature",
+          "nonce",
+          "deadline"
+        ],
+        "title": "V11SignedCloseCaseSchema"
+      },
+      "V11SignedReviewRequest": {
+        "properties": {
+          "review_status": {
+            "type": "string",
+            "enum": [
+              "ACKNOWLEDGED",
+              "ACCEPTED",
+              "REVISION_REQUESTED"
+            ],
+            "title": "Review Status"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "reason_text": {
+            "type": "string",
+            "title": "Reason Text",
+            "default": ""
+          },
+          "signer_address": {
+            "type": "string",
+            "title": "Signer Address"
+          },
+          "signature": {
+            "type": "string",
+            "title": "Signature"
+          },
+          "nonce": {
+            "type": "string",
+            "minLength": 16,
+            "title": "Nonce"
+          },
+          "deadline": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Deadline"
+          }
+        },
+        "type": "object",
+        "required": [
+          "review_status",
+          "signer_address",
+          "signature",
+          "nonce",
+          "deadline"
+        ],
+        "title": "V11SignedReviewRequest"
+      },
+      "V11VerificationRequest": {
+        "properties": {
+          "claim": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Claim"
+          },
+          "proofs": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Proofs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "claim"
+        ],
+        "title": "V11VerificationRequest"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "VerifyRequestSchema": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "step_id": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Step Id"
+          },
+          "raw_claim_text": {
+            "type": "string",
+            "title": "Raw Claim Text"
+          },
+          "proof": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Proof"
+          },
+          "evidence_deadline": {
+            "type": "string",
+            "title": "Evidence Deadline",
+            "default": "2026-12-31 23:59:59"
+          },
+          "agency": {
+            "type": "string",
+            "title": "Agency"
+          },
+          "signature": {
+            "type": "string",
+            "title": "Signature"
+          },
+          "nonce": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Nonce"
+          },
+          "deadline": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Deadline"
+          },
+          "evidence_timestamp": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Evidence Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "case_id",
+          "step_id",
+          "raw_claim_text",
+          "proof",
+          "agency",
+          "signature",
+          "nonce",
+          "deadline",
+          "evidence_timestamp"
+        ],
+        "title": "VerifyRequestSchema"
+      }
+    }
+  }
+}

@@ -1,0 +1,398 @@
+[
+  {
+    "file": "chain-of-investigation/test_atomic_save.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "ba3f4a8c401b97bf55799feaf350abfd523a7d07a16809a117ca30718d82a21a"
+  },
+  {
+    "file": "chain-of-investigation/test_ai_verification_vector.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "05a45c46bb984035ca1cc52a57d0d7323d881061813f21df3bd6c439b3f1cb18"
+  },
+  {
+    "file": "chain-of-investigation/verification_v11.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "dbe8c758afc29fc571d7865680bfaa23a53c77d3dc4c22e3bcd9240a97b88faf"
+  },
+  {
+    "file": "chain-of-investigation/test_hash_proof.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "fa61af2222d592863e5f4ccb08871364b00297da93d02ddf16e24785be796ecc"
+  },
+  {
+    "file": "chain-of-investigation/test_ai_backend_integration.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "b6a3b151e0e6e3dada4ad92aebb81b2df9fc07f12c458ac564d4b4d7f487bb3b"
+  },
+  {
+    "file": "chain-of-investigation/test_action_types.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "911e81713e382f002eefeb3401e844a9e205e3431b5b1241439a694c98ddf742"
+  },
+  {
+    "file": "chain-of-investigation/generate_ai_demo_cases.py",
+    "source": "AI cleanup ZIP",
+    "unchanged": true,
+    "sha256": "618d9c274ff4795287f3a0717d1de64691020b1e9fcb854e8eef79f9883a02fa"
+  },
+  {
+    "file": "chain-of-investigation/mapping_evidence.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "5b9be1ba9657efb30634a963900a8226f7d81bfd74ca62f5e47835beccd1f1da"
+  },
+  {
+    "file": "chain-of-investigation/backend_bridge.py",
+    "source": "AI cleanup ZIP",
+    "unchanged": true,
+    "sha256": "44545d1269915ba5efc296a078b69f0d8ebeeb5ff449335a5944a2390268e989"
+  },
+  {
+    "file": "chain-of-investigation/package.json",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "b7203757905a34f4ddaa19108065818bbf27d6f3cf9709e93ef75157d4f22229"
+  },
+  {
+    "file": "chain-of-investigation/ai_provider.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "f239052b095d1dbe77a01bea3ea2ccd1c9d1e83734f2db93f4496735d9ce3894"
+  },
+  {
+    "file": "chain-of-investigation/AI-구버전-정리.md",
+    "source": "AI cleanup ZIP",
+    "unchanged": true,
+    "sha256": "93a7cd62dc560d1dc12f5a93aaaa0365e6e5d4df4692cf8c0ace934dbe6526d0"
+  },
+  {
+    "file": "chain-of-investigation/test_verification_hash_v11.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "fa708867ba695a3f029ebe2100b1a4b795f2f1f9386a05f8ce882224dc2cea00"
+  },
+  {
+    "file": "chain-of-investigation/tsconfig.json",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "99c8b5f07448d81a615de4ef3b4d36825b33d85d3b984856e38fef95fcdd5566"
+  },
+  {
+    "file": "chain-of-investigation/.gitignore",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "1c1e987076f808af2e18fd6b73b9eb424076d33b44cee85054f829b6d8c05af6"
+  },
+  {
+    "file": "chain-of-investigation/main.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "6f7423866e08367be65310394ce2680ae5d8d641da8914e49e89b3bdd8699abf"
+  },
+  {
+    "file": "chain-of-investigation/CLAUDE.md",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "336cc4fbf19beaada7ccf9986414fa91851a8d7a07dfb3ccbe800a69eed0ab49"
+  },
+  {
+    "file": "chain-of-investigation/AI-v1.1-규격대조표.md",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "871f3164eeba64fff4d3109a3edf87dfb1c6ed45755317f189f8bdb992d44481"
+  },
+  {
+    "file": "chain-of-investigation/INTEGRATION-v11.md",
+    "source": "AI cleanup ZIP",
+    "unchanged": true,
+    "sha256": "81cbe4382b471789f2998b1d3c8ff64364434072ad8c22d14c0168d0e654cdfe"
+  },
+  {
+    "file": "chain-of-investigation/test_legacy_recover_proof.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "514220537c3112f4bcaed47a39d96d0f45f6aef3e67739fb6a57645d51b5cb94"
+  },
+  {
+    "file": "chain-of-investigation/hardhat.config.ts",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "8f734670bd128c5ffdd4ccfb601faa99e27bb1e3b70217c18f6709e150ee491c"
+  },
+  {
+    "file": "chain-of-investigation/generate_contract_vectors.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "85cb8e6f2e40fb52ad6d4b5627a83c1cf48fce4776989d69383dffa6ade2c968"
+  },
+  {
+    "file": "chain-of-investigation/test_ai.py",
+    "source": "AI cleanup ZIP",
+    "unchanged": true,
+    "sha256": "02cb72b6388cfd024f623d243b093cea46dc50b190fe6635823f42856bbec851"
+  },
+  {
+    "file": "chain-of-investigation/pipeline.py",
+    "source": "AI cleanup ZIP",
+    "unchanged": true,
+    "sha256": "5138358d3ea3c0e152152afc91e917253a97db8a0146ed6f1bd88a83b0dd0f19"
+  },
+  {
+    "file": "chain-of-investigation/ai_engine.py",
+    "source": "AI cleanup ZIP",
+    "unchanged": true,
+    "sha256": "2e572fc2990393077f39ab3b18e9659f63a56b73db8f96874147da5e2d75f9a2"
+  },
+  {
+    "file": "chain-of-investigation/metamask-test.html",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "3f26ce15759e5157b7686488a852885942e543280cdc251d41d25080de4dbec0"
+  },
+  {
+    "file": "chain-of-investigation/관리자-승인-종결-E2E.md",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "900f2c6b87778cc88e1a1a9f4c3da8292df7c0cd546aaf619f1a845d5e834a25"
+  },
+  {
+    "file": "chain-of-investigation/package-lock.json",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "66eda184f746f22b9813bee6f64f23c9a476419b1bc7e34fbc98458b063beda9"
+  },
+  {
+    "file": "chain-of-investigation/requirements.txt",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "0873ca8f8017d9038f1c54b92f337e670d4ed7ed8d7205a6e83a39a65ad3f8d2"
+  },
+  {
+    "file": "chain-of-investigation/test_sign_agency_proof.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "bc49b996664202f306ccc3d23161eefa3b46e66412fc5b96cd180ed5fcddd7cf"
+  },
+  {
+    "file": "chain-of-investigation/AI-백엔드-연동결과.md",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "a367d9e26ff0888921f6cc8e32d9b97f580f58ad8d927f79a1aa8f9b776e0fe4"
+  },
+  {
+    "file": "chain-of-investigation/verification.py",
+    "source": "AI cleanup ZIP",
+    "unchanged": true,
+    "sha256": "75c6f36f26bb4e7cd922745b2e398c07a5e0150b42230de1abb6472424e443c8"
+  },
+  {
+    "file": "chain-of-investigation/pnpm-lock.yaml",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "f2daf9960eeef23fa153a4e8a059247d72cd079adcd94fd3598a84f91597180b"
+  },
+  {
+    "file": "chain-of-investigation/test_extraction_output.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "a63a44e01440705803c671e7ab0f3a7c789fbd4f7d48a81370c29d1d0d49da08"
+  },
+  {
+    "file": "chain-of-investigation/test_v11_contract.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "697568889261325f64263b8dfe2e25dcbf068a148371be200b61f7770a8f2c98"
+  },
+  {
+    "file": "chain-of-investigation/run_checks.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "77163952953a7116613e5da2edfd4c37a17d4e7c0a636293f7aaaaa29e189a43"
+  },
+  {
+    "file": "chain-of-investigation/run_live_acceptance.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "3d0cb374935712bd14469e4d53c786099fde13c5ae50d86e417fd0a76577b454"
+  },
+  {
+    "file": "chain-of-investigation/AGENTS.md",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "be16229ba24306c4621832aea6c9277f9f78d730e91bdf94c6c779f383dac5da"
+  },
+  {
+    "file": "chain-of-investigation/test_hash_verification.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "91fc21621df569db078662081677b289dd295af43e4fd59955543aebab8808c9"
+  },
+  {
+    "file": "chain-of-investigation/test_verification_v11.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "6e62d39389778ea6891b53583bb36ec74656a0af3da5ce1eb5db902c9cf02a43"
+  },
+  {
+    "file": "chain-of-investigation/test_conflict_sort.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "d3781b9c281f7de09bb0914b443c22ae60c34a5d9527fef64e33508a06f0f960"
+  },
+  {
+    "file": "chain-of-investigation/hash_utils.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "7a1a8adb3b2a1726d363e90c6fb1a71e1d50c21fbdbd115830df32e119c602fa"
+  },
+  {
+    "file": "chain-of-investigation/database.py",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "11554ae9289a900bd5d88fc1938512d83e3839812df14d71fa8146cae4479e0a"
+  },
+  {
+    "file": "chain-of-investigation/README.md",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "51a2c856f7e1e640cfa8fde7b2116852d42fe83bbdb69d3575d070e084b5ef80"
+  },
+  {
+    "file": "chain-of-investigation/acceptance/admin-chain-integration.json",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "0f88a2de5d09c85f32469c7781c97328dbd03c12ec16aeeef8c6badcb9cb1ac7"
+  },
+  {
+    "file": "chain-of-investigation/acceptance/backend-chain-live.json",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "5b87fa2608d2103d96240b597655c115bb9f49eeaf15f02c9e36a71f41ecea38"
+  },
+  {
+    "file": "chain-of-investigation/acceptance/admin-chain-live-timeout.json",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "ab292b9030ee558a01400a76e26b19d52a51d99d06e862ea5d61a82cca9b60b8"
+  },
+  {
+    "file": "chain-of-investigation/acceptance/backend-chain-integration.json",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "d750fc7eab1ccf4db296e337a02ddb4a957ac5906150fdf243471edf814ca63a"
+  },
+  {
+    "file": "chain-of-investigation/acceptance/ai-legacy-cleanup-regression.json",
+    "source": "AI cleanup ZIP",
+    "unchanged": true,
+    "sha256": "e76c9e1d6f42359e231c290dc202683ef618cf62d7f85fbf0d42caef715b9d61"
+  },
+  {
+    "file": "chain-of-investigation/acceptance/live-gemini.json",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "a1587c895960476edb166e4d5d6d3aaa8755b2b6662f1ae8db8f5ec992a6027b"
+  },
+  {
+    "file": "chain-of-investigation/acceptance/structured-claim.schema.json",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "e58c66059e7d493256ac8026f078ab600d5110747a3aa597821ae1e60971d4a5"
+  },
+  {
+    "file": "chain-of-investigation/acceptance/admin-chain-live.json",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "b319c26fb64a918607c7c079f3b5310eca049b2f699411fdcb8acc4b5d2e3f03"
+  },
+  {
+    "file": "chain-of-investigation/test/ChainOfInvestigation.test.ts",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "83c1ae2bfa343e274ac258524573e543ed3e8d2568778431e835d5af3d6fb53b"
+  },
+  {
+    "file": "chain-of-investigation/scripts/send-op-tx.ts",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "7840b5eecc9ccfccc2e0876fb594f2c546ce2e3f909071e246e475568cc27c3e"
+  },
+  {
+    "file": "chain-of-investigation/scripts/register-agencies.ts",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "001f4058dbaff9170d14ba7732345c9f3ca6e8416a06a8e085805df5aba5fcc4"
+  },
+  {
+    "file": "chain-of-investigation/scripts/deploy.ts",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "0f6778341bcd44386b372eed25010ce82aeb2aab7fc41470a9fa250d92917e0f"
+  },
+  {
+    "file": "chain-of-investigation/scripts/anchor-signed-proof.ts",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "474a05b21b7dc875904b92bacf6e442b215f977bb5cef3b31278e3f01da7d9fd"
+  },
+  {
+    "file": "chain-of-investigation/contracts/ChainOfInvestigation.sol",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "160a36f1879735c3f4c127d61a3fe0781da2781eed7b55dcadc334bf1f3d8524"
+  },
+  {
+    "file": "chain-of-investigation/.agents/skills/hardhat/SKILL.md",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "5f8186627eb0437ae1e01f5a72214be6d08e98fb1f2da13ee80be787caa8532a"
+  },
+  {
+    "file": "chain-of-investigation/.agents/skills/hardhat-toolbox-mocha-ethers/SKILL.md",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "282a3aaa37b9d8048c76b3a8da4623cb131c920f0dac2a857d7e4e46c5341533"
+  },
+  {
+    "file": "chain-of-investigation/.claude/skills/hardhat/SKILL.md",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "5f8186627eb0437ae1e01f5a72214be6d08e98fb1f2da13ee80be787caa8532a"
+  },
+  {
+    "file": "chain-of-investigation/.claude/skills/hardhat-toolbox-mocha-ethers/SKILL.md",
+    "source": "Backend cleanup ZIP",
+    "unchanged": true,
+    "sha256": "282a3aaa37b9d8048c76b3a8da4623cb131c920f0dac2a857d7e4e46c5341533"
+  },
+  {
+    "file": "chain-of-investigation/docs/ai-demo-v1.1/contradicted.json",
+    "source": "AI cleanup ZIP",
+    "unchanged": true,
+    "sha256": "7ad964124bd44d7b839c6ea29eafa0d83937730e85a869019fbdd1db5fd98594"
+  },
+  {
+    "file": "chain-of-investigation/docs/ai-demo-v1.1/supported.json",
+    "source": "AI cleanup ZIP",
+    "unchanged": true,
+    "sha256": "9ad6dc5aa42aaf0803d70b8ee3804729a51a623d9441faa38a5629fcea67388e"
+  },
+  {
+    "file": "chain-of-investigation/docs/ai-demo-v1.1/insufficient.json",
+    "source": "AI cleanup ZIP",
+    "unchanged": true,
+    "sha256": "a988f517a3e9b3ce032d070d72e57b404b49716db50a9249df7e5957bb672df0"
+  },
+  {
+    "file": "chain-of-investigation/docs/ai-demo-v1.1/README.md",
+    "source": "AI cleanup ZIP",
+    "unchanged": true,
+    "sha256": "186678955630fbbd349d8061a2d4282be550e69e15b8f67bfdcd5d8af26050a1"
+  }
+]

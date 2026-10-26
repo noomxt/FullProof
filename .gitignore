@@ -1,8 +1,15 @@
-﻿
-# Frontend local files
-frontend/node_modules/
-frontend/dist/
-frontend/.env
-frontend/.env.*
-!frontend/.env.example
-frontend/*.tsbuildinfo
+node_modules/
+dist/
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+*.db
+*.db-*
+.local-run/
+artifacts/
+cache/
+local-demo.json
+*.tsbuildinfo

@@ -3,7 +3,7 @@ import { ethers } from "ethers";
 
 async function main() {
   // Hardhat이 컴파일한 컨트랙트의 ABI와 바이트코드를 가져옵니다.
-  const artifact = await hre.artifacts.readArtifact("ChainOfInvestigation");
+  const artifact = await hre.artifacts.readArtifact("contracts/ChainOfInvestigation.sol:ChainOfInvestigation");
 
   // npx hardhat node 로컬 네트워크에 연결합니다.
   const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");

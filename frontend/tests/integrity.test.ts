@@ -1,0 +1,13 @@
+import {beforeEach,afterEach,it,expect,vi} from 'vitest';
+import {webcrypto} from 'node:crypto';
+import fixture from './fixtures/integrity.json';
+import {computeIntegrity,type IntegrityData} from '../src/integrity';
+beforeEach(()=>vi.stubGlobal('crypto',webcrypto));afterEach(()=>vi.unstubAllGlobals());
+const data=()=>JSON.parse(JSON.stringify(fixture)) as IntegrityData;
+it('matches independently generated official Python JCS hashes and all chain references',async()=>{const r=await computeIntegrity(data());expect(r.ok).toBe(true);expect(r.checks.length).toBeGreaterThan(12)});
+it('detects a single added whitespace in the raw Claim',async()=>{const d=data();d.claim.claim_text+=' ';const r=await computeIntegrity(d);expect(r.ok).toBe(false);expect(r.checks.find(c=>c.name==='Claim 원문 SHA-256 ↔ 온체인 해시')?.status).toBe('MISMATCH')});
+it('detects source byte changes',async()=>{const d=data();d.proofs[0].source_text+='\n';const r=await computeIntegrity(d);expect(r.ok).toBe(false);expect(r.checks.some(c=>c.name.includes('원천 원문')&&c.status==='MISMATCH')).toBe(true)});
+it('detects Proof content changes',async()=>{const d=data();d.proofs[0].content.call_id='OTHER-CALL';expect((await computeIntegrity(d)).ok).toBe(false)});
+it('detects changed judgement even if all recorded hashes remain unchanged',async()=>{const d=data();d.verification.verdict='CONTRADICTED';const r=await computeIntegrity(d);expect(r.ok).toBe(false);expect(r.checks.find(c=>c.name==='온체인 판정')?.status).toBe('MISMATCH')});
+it('does not treat missing onchain data as a match',async()=>{const d=data();d.onchain.verification=null;const r=await computeIntegrity(d);expect(r.ok).toBe(false);expect(r.checks.some(c=>c.status==='UNAVAILABLE')).toBe(true)});
+it('checks policy bytes rather than trusting the stored policy hash',async()=>{const d=data();d.policy.time_tolerance_seconds=9999;const r=await computeIntegrity(d);expect(r.ok).toBe(false);expect(r.checks.find(c=>c.name==='제공된 정책 원문 JCS·SHA-256')?.status).toBe('MISMATCH')});
