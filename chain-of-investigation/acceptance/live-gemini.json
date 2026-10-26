@@ -1,0 +1,305 @@
+{
+  "mock_input": true,
+  "passed": 10,
+  "total": 10,
+  "cases": [
+    {
+      "case": "connected",
+      "passed": true,
+      "expected": [
+        [
+          "PHONE_CALL",
+          "SUCCESS",
+          "P001",
+          "2026-10-18T05:00:00Z"
+        ]
+      ],
+      "result": {
+        "schema_version": "1.1",
+        "claim_id": "LIVE-connected",
+        "claim_version": 1,
+        "extraction_status": "COMPLETED",
+        "actions": [
+          {
+            "action_type": "PHONE_CALL",
+            "action_result": "SUCCESS",
+            "target_id": "P001",
+            "occurred_at": "2026-10-18T05:00:00Z",
+            "source_excerpt": "2026년 10월 18일 오후 2시에 P001과 통화 연결에 성공했다."
+          }
+        ],
+        "model_name": "gemini-3.8-flash",
+        "prompt_version": "extract-v1.1-prompt-v2",
+        "review_required": false
+      }
+    },
+    {
+      "case": "failed",
+      "passed": true,
+      "expected": [
+        [
+          "PHONE_CALL",
+          "FAIL",
+          "P001",
+          "2026-10-18T05:00:00Z"
+        ]
+      ],
+      "result": {
+        "schema_version": "1.1",
+        "claim_id": "LIVE-failed",
+        "claim_version": 1,
+        "extraction_status": "COMPLETED",
+        "actions": [
+          {
+            "action_type": "PHONE_CALL",
+            "action_result": "FAIL",
+            "target_id": "P001",
+            "occurred_at": "2026-10-18T05:00:00Z",
+            "source_excerpt": "2026년 10월 18일 오후 2시에 P001에게 전화를 걸었으나 연결에 실패했다."
+          }
+        ],
+        "model_name": "gemini-3.8-flash",
+        "prompt_version": "extract-v1.1-prompt-v2",
+        "review_required": false
+      }
+    },
+    {
+      "case": "attempt",
+      "passed": true,
+      "expected": [
+        [
+          "PHONE_CALL",
+          "UNKNOWN",
+          "P001",
+          "2026-10-18T05:00:00Z"
+        ]
+      ],
+      "result": {
+        "schema_version": "1.1",
+        "claim_id": "LIVE-attempt",
+        "claim_version": 1,
+        "extraction_status": "NEEDS_REVIEW",
+        "actions": [
+          {
+            "action_type": "PHONE_CALL",
+            "action_result": "UNKNOWN",
+            "target_id": "P001",
+            "occurred_at": "2026-10-18T05:00:00Z",
+            "source_excerpt": "2026년 10월 18일 오후 2시에 P001에게 전화를 걸었다."
+          }
+        ],
+        "model_name": "gemini-3.8-flash",
+        "prompt_version": "extract-v1.1-prompt-v2",
+        "review_required": true
+      }
+    },
+    {
+      "case": "plan",
+      "passed": true,
+      "expected": [],
+      "result": {
+        "schema_version": "1.1",
+        "claim_id": "LIVE-plan",
+        "claim_version": 1,
+        "extraction_status": "NEEDS_REVIEW",
+        "actions": [],
+        "model_name": "gemini-3.8-flash",
+        "prompt_version": "extract-v1.1-prompt-v2",
+        "review_required": true
+      }
+    },
+    {
+      "case": "missing",
+      "passed": true,
+      "expected": [
+        [
+          "PHONE_CALL",
+          "SUCCESS",
+          null,
+          null
+        ]
+      ],
+      "result": {
+        "schema_version": "1.1",
+        "claim_id": "LIVE-missing",
+        "claim_version": 1,
+        "extraction_status": "NEEDS_REVIEW",
+        "actions": [
+          {
+            "action_type": "PHONE_CALL",
+            "action_result": "SUCCESS",
+            "target_id": null,
+            "occurred_at": null,
+            "source_excerpt": "전화 연결에 성공했다."
+          }
+        ],
+        "model_name": "gemini-3.8-flash",
+        "prompt_version": "extract-v1.1-prompt-v2",
+        "review_required": true
+      }
+    },
+    {
+      "case": "cctv_request",
+      "passed": true,
+      "expected": [
+        [
+          "CCTV_REQUEST",
+          "SUCCESS",
+          "P001",
+          "2026-10-18T05:00:00Z"
+        ]
+      ],
+      "result": {
+        "schema_version": "1.1",
+        "claim_id": "LIVE-cctv_request",
+        "claim_version": 1,
+        "extraction_status": "COMPLETED",
+        "actions": [
+          {
+            "action_type": "CCTV_REQUEST",
+            "action_result": "SUCCESS",
+            "target_id": "P001",
+            "occurred_at": "2026-10-18T05:00:00Z",
+            "source_excerpt": "2026년 10월 18일 오후 2시에 P001 관련 CCTV 영상 제공 요청을 완료했다."
+          }
+        ],
+        "model_name": "gemini-3.8-flash",
+        "prompt_version": "extract-v1.1-prompt-v2",
+        "review_required": false
+      }
+    },
+    {
+      "case": "cctv_review",
+      "passed": true,
+      "expected": [
+        [
+          "CCTV_REVIEW",
+          "SUCCESS",
+          "P001",
+          "2026-10-18T05:00:00Z"
+        ]
+      ],
+      "result": {
+        "schema_version": "1.1",
+        "claim_id": "LIVE-cctv_review",
+        "claim_version": 1,
+        "extraction_status": "COMPLETED",
+        "actions": [
+          {
+            "action_type": "CCTV_REVIEW",
+            "action_result": "SUCCESS",
+            "target_id": "P001",
+            "occurred_at": "2026-10-18T05:00:00Z",
+            "source_excerpt": "2026년 10월 18일 오후 2시에 P001 관련 CCTV 영상을 열람 완료했다."
+          }
+        ],
+        "model_name": "gemini-3.8-flash",
+        "prompt_version": "extract-v1.1-prompt-v2",
+        "review_required": false
+      }
+    },
+    {
+      "case": "location_request",
+      "passed": true,
+      "expected": [
+        [
+          "LOCATION_REQUEST",
+          "SUCCESS",
+          "P001",
+          "2026-10-18T05:00:00Z"
+        ]
+      ],
+      "result": {
+        "schema_version": "1.1",
+        "claim_id": "LIVE-location_request",
+        "claim_version": 1,
+        "extraction_status": "COMPLETED",
+        "actions": [
+          {
+            "action_type": "LOCATION_REQUEST",
+            "action_result": "SUCCESS",
+            "target_id": "P001",
+            "occurred_at": "2026-10-18T05:00:00Z",
+            "source_excerpt": "2026년 10월 18일 오후 2시에 P001 위치정보 조회 요청을 완료했다."
+          }
+        ],
+        "model_name": "gemini-3.8-flash",
+        "prompt_version": "extract-v1.1-prompt-v2",
+        "review_required": false
+      }
+    },
+    {
+      "case": "multiple",
+      "passed": true,
+      "expected": [
+        [
+          "PHONE_CALL",
+          "SUCCESS",
+          "P001",
+          "2026-10-18T05:00:00Z"
+        ],
+        [
+          "PHONE_CALL",
+          "FAIL",
+          "P002",
+          "2026-10-18T06:00:00Z"
+        ]
+      ],
+      "result": {
+        "schema_version": "1.1",
+        "claim_id": "LIVE-multiple",
+        "claim_version": 1,
+        "extraction_status": "NEEDS_REVIEW",
+        "actions": [
+          {
+            "action_type": "PHONE_CALL",
+            "action_result": "SUCCESS",
+            "target_id": "P001",
+            "occurred_at": "2026-10-18T05:00:00Z",
+            "source_excerpt": "2026년 10월 18일 오후 2시에 P001과 통화 연결에 성공했다."
+          },
+          {
+            "action_type": "PHONE_CALL",
+            "action_result": "FAIL",
+            "target_id": "P002",
+            "occurred_at": "2026-10-18T06:00:00Z",
+            "source_excerpt": "2026년 10월 18일 오후 3시에 P002와 통화 연결에 실패했다."
+          }
+        ],
+        "model_name": "gemini-3.8-flash",
+        "prompt_version": "extract-v1.1-prompt-v2",
+        "review_required": true
+      }
+    },
+    {
+      "case": "relative",
+      "passed": true,
+      "expected": [
+        [
+          "PHONE_CALL",
+          "SUCCESS",
+          "P001",
+          null
+        ]
+      ],
+      "result": {
+        "schema_version": "1.1",
+        "claim_id": "LIVE-relative",
+        "claim_version": 1,
+        "extraction_status": "NEEDS_REVIEW",
+        "actions": [
+          {
+            "action_type": "PHONE_CALL",
+            "action_result": "SUCCESS",
+            "target_id": "P001",
+            "occurred_at": null,
+            "source_excerpt": "어제 오후 2시에 P001과 통화 연결에 성공했다."
+          }
+        ],
+        "model_name": "gemini-3.8-flash",
+        "prompt_version": "extract-v1.1-prompt-v2",
+        "review_required": true
+      }
+    }
+  ]
+}

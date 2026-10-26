@@ -1,0 +1,481 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FullProof | 관제센터 전자서명 테스트</title>
+
+  <style>
+    body {
+      font-family: Arial, "Malgun Gothic", sans-serif;
+      background: #f5f7fb;
+      color: #18243a;
+      padding: 30px;
+    }
+
+    main {
+      max-width: 750px;
+      margin: auto;
+      padding: 28px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 6px 24px #0001;
+    }
+
+    button {
+      display: block;
+      width: 100%;
+      padding: 13px;
+      margin: 12px 0;
+      border: none;
+      border-radius: 8px;
+      background: #245bd6;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      background: #a0aec0;
+      cursor: not-allowed;
+    }
+
+    pre {
+      background: #eef2f7;
+      padding: 18px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .notice {
+      color: #526176;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+  </style>
+</head>
+
+<body>
+<main>
+  <h1>FullProof · CCTV Proof 전자서명</h1>
+
+  <p class="notice">
+    가상 CCTV 증빙자료를 사용한 로컬 블록체인 테스트입니다.
+    AI 검증을 수행하지 않으므로 검증 상태는 PENDING입니다.
+  </p>
+
+  <button id="connect">① MetaMask 연결</button>
+  <button id="switch">② Hardhat Local 전환</button>
+  <button id="check">③ 연결 상태 확인</button>
+  <button id="sign">④ CCTV Proof EIP-712 전자서명</button>
+  <button id="send" disabled>⑤ FastAPI로 Proof 전송</button>
+
+  <h3>실행 결과</h3>
+  <pre id="output">버튼 ①부터 눌러주세요.</pre>
+
+  <p class="notice">
+    관제센터 지갑:
+    0x24C2715bB8d4c3d85D76105AC5D8EA470445A20A
+  </p>
+</main>
+
+<script src="./node_modules/ethers/dist/ethers.umd.min.js"></script>
+<script>
+  const AGENCY =
+    "0x24C2715bB8d4c3d85D76105AC5D8EA470445A20A";
+
+  const CONTRACT =
+    "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+
+  const CHAIN_ID = "0x7a69";
+
+  const CASE_ID = "FULLPROOF_TEST_001";
+  const STEP_ID = 0;
+
+  const output = document.getElementById("output");
+
+  function log(message) {
+    output.textContent = message;
+  }
+
+  function provider() {
+    if (!window.ethereum) {
+      throw new Error("MetaMask를 찾을 수 없습니다.");
+    }
+    return window.ethereum;
+  }
+
+  function showError(error) {
+    log("오류: " + (error.message || String(error)));
+  }
+
+  // Python hashlib.sha256과 동일한 해시 계산
+  async function sha256(text) {
+    const bytes = new TextEncoder().encode(text);
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+
+    const hex = Array.from(new Uint8Array(digest))
+      .map(b => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    return "0x" + hex;
+  }
+
+  async function getWalletStatus() {
+    const p = provider();
+
+    const accounts = await p.request({
+      method: "eth_accounts"
+    });
+
+    const chainId = await p.request({
+      method: "eth_chainId"
+    });
+
+    const account = accounts[0] || "";
+
+    return {
+      account,
+      chainId,
+      accountMatches:
+        account.toLowerCase() === AGENCY.toLowerCase(),
+      chainMatches:
+        chainId.toLowerCase() === CHAIN_ID
+    };
+  }
+
+  // ① MetaMask 연결
+  document.getElementById("connect").onclick = async () => {
+    try {
+      await provider().request({
+        method: "eth_requestAccounts"
+      });
+
+      const status = await getWalletStatus();
+      log(JSON.stringify(status, null, 2));
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  // ② Hardhat Local 전환
+  document.getElementById("switch").onclick = async () => {
+    try {
+      const p = provider();
+
+      try {
+        await p.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: CHAIN_ID }]
+        });
+      } catch (error) {
+        if (error.code !== 4902) throw error;
+
+        await p.request({
+          method: "wallet_addEthereumChain",
+          params: [{
+            chainId: CHAIN_ID,
+            chainName: "Hardhat Local",
+            rpcUrls: ["http://127.0.0.1:8545"],
+            nativeCurrency: {
+              name: "Ether",
+              symbol: "ETH",
+              decimals: 18
+            }
+          }]
+        });
+
+        await p.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: CHAIN_ID }]
+        });
+      }
+
+      log("Hardhat Local 전환 요청 완료");
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  // ③ 연결 상태 확인
+  document.getElementById("check").onclick = async () => {
+    try {
+      const status = await getWalletStatus();
+
+      log(
+        "계정: " + status.account + "\n" +
+        "관제센터 일치: " + status.accountMatches + "\n" +
+        "체인 ID: " + status.chainId + "\n" +
+        "Hardhat 일치: " + status.chainMatches
+      );
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+  // ④ EIP-712 전자서명 생성
+  document.getElementById("sign").onclick = async () => {
+    try {
+      const p = provider();
+      const status = await getWalletStatus();
+
+      if (!status.accountMatches) {
+        throw new Error(
+          "관제센터 계정으로 연결해야 합니다."
+        );
+      }
+
+      if (!status.chainMatches) {
+        throw new Error(
+          "먼저 Hardhat Local로 전환해주세요."
+        );
+      }
+
+      // main.py의 사건 ID 변환 방식과 동일
+      const caseHash = await sha256(CASE_ID);
+      const caseUint = BigInt(caseHash).toString();
+
+      // 가상 Claim / Proof 데이터
+      const claimText =
+        "TEST_CLAIM_CCTV_REVIEW_REQUESTED";
+
+      const proofText =
+        "TEST_PROOF_CCTV_REVIEW_RECEIVED";
+
+      const claimHash = await sha256(claimText);
+      const proofHash = await sha256(proofText);
+
+      const now = Math.floor(Date.now() / 1000);
+
+      
+      // 스마트 컨트랙트에서 기관의 현재 nonce 자동 조회
+      const rpcProvider = new ethers.JsonRpcProvider(
+        "http://127.0.0.1:8545"
+      );
+
+      const contract = new ethers.Contract(
+        CONTRACT,
+        [
+          "function agencyNonces(address) view returns (uint256)"
+        ],
+        rpcProvider
+      );
+
+      const nonce = (
+        await contract.agencyNonces(AGENCY)
+      ).toString();
+
+
+      const domain = {
+        name: "FullProof",
+        version: "1",
+        chainId: 31337,
+        verifyingContract: CONTRACT
+      };
+
+      const types = {
+        Proof: [
+          { name: "caseId", type: "uint256" },
+          { name: "stepId", type: "uint256" },
+          { name: "claimHash", type: "bytes32" },
+          { name: "proofHash", type: "bytes32" },
+          { name: "result", type: "uint8" },
+          { name: "evidenceTimestamp", type: "uint64" },
+          { name: "nonce", type: "uint256" },
+          { name: "deadline", type: "uint64" },
+          { name: "agency", type: "address" }
+        ]
+      };
+
+      const message = {
+        caseId: caseUint,
+        stepId: STEP_ID,
+        claimHash: claimHash,
+        proofHash: proofHash,
+        result: 0,   // PENDING: AI 검증 전
+        evidenceTimestamp: now,
+        nonce: nonce,
+        deadline: now + 3600,
+        agency: AGENCY
+      };
+
+      const typedData = {
+        domain,
+        types: {
+          EIP712Domain: [
+            { name: "name", type: "string" },
+            { name: "version", type: "string" },
+            { name: "chainId", type: "uint256" },
+            { name: "verifyingContract", type: "address" }
+          ],
+          ...types
+        },
+        primaryType: "Proof",
+        message
+      };
+
+      log("MetaMask 서명 요청 중...");
+
+      const signature = await p.request({
+        method: "eth_signTypedData_v4",
+        params: [
+          status.account,
+          JSON.stringify(typedData)
+        ]
+      });
+      const recovered = ethers.verifyTypedData(
+        domain,
+        types,
+        message,
+        signature
+      );
+
+      const matches =
+        recovered.toLowerCase() === status.account.toLowerCase();
+
+      console.log("========== MetaMask 즉시 검증 ==========");
+      console.log("서명 요청 계정:", status.account);
+      console.log("복구된 서명자:", recovered);
+      console.log("일치 여부:", matches);
+      console.log("=====================================");
+
+      if (!matches) {
+        log(
+          "❌ MetaMask 서명 즉시 검증 실패\n\n" +
+          "요청 계정: " + status.account + "\n" +
+          "복구 주소: " + recovered + "\n\n" +
+          "원본 서명과 요청 데이터가 일치하지 않습니다."
+        );
+        return;
+      }
+
+      // 다음 단계에서 온체인 전송에 사용할 데이터
+      const result = {
+        case_id: CASE_ID,
+        step_id: STEP_ID,
+        claim_text: claimText,
+        proof_text: proofText,
+        agency: AGENCY,
+        claim_hash: claimHash,
+        proof_hash: proofHash,
+        result: 0,
+        evidence_timestamp: now,
+        nonce: Number(nonce),
+        deadline: now + 3600,
+
+        // 실제 MetaMask에 서명 요청한 계정
+        signing_account: status.account,
+
+        // MetaMask에 전달한 EIP-712 데이터 전체
+        signed_typed_data: typedData,
+
+        signature: signature
+      };
+
+      // 페이지가 열려 있는 동안만 보관
+      window.lastSignedProof = result;
+      document.getElementById("send").disabled = false;
+      
+      const json = JSON.stringify(result, null, 2);
+
+      const blob = new Blob(
+        [json],
+        { type: "application/json" }
+      );
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = "signed-proof.local.json";
+      link.click();
+
+      URL.revokeObjectURL(url);
+
+
+      log(
+        "✅ EIP-712 전자서명 생성 완료!\n\n" +
+        JSON.stringify(result, null, 2)
+      );
+
+    } catch (error) {
+      showError(error);
+    }
+  };
+
+// ⑤ MetaMask 서명 데이터를 FastAPI로 전송
+document.getElementById("send").onclick = async () => {
+  const sendButton = document.getElementById("send");
+
+  try {
+    const signed = window.lastSignedProof;
+
+    if (!signed) {
+      throw new Error("먼저 ④ 버튼에서 전자서명을 생성해주세요.");
+    }
+
+    // 서명 이후 계정이나 체인이 변경되었는지 확인
+    const status = await getWalletStatus();
+
+    if (!status.accountMatches || !status.chainMatches) {
+      throw new Error("관제센터 계정과 Hardhat Local 연결을 확인해주세요.");
+    }
+
+    sendButton.disabled = true;
+    log("FastAPI에 전자서명 데이터를 전송 중...");
+
+    const payload = {
+      case_id: signed.case_id,
+      step_id: signed.step_id,
+      claim_text: signed.claim_text,
+      proof_text: signed.proof_text,
+      agency: signed.agency,
+      claim_hash: signed.claim_hash,
+      proof_hash: signed.proof_hash,
+      result: signed.result,
+      evidence_timestamp: signed.evidence_timestamp,
+      nonce: signed.nonce,
+      deadline: signed.deadline,
+      signature: signed.signature
+    };
+
+    const response = await fetch(
+      "http://127.0.0.1:8000/api/v1/cases/proofs/anchor",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        typeof result.detail === "string"
+          ? result.detail
+          : JSON.stringify(result.detail || result)
+      );
+    }
+
+    log(
+      "✅ FastAPI → 블록체인 기록 성공!\n\n" +
+      JSON.stringify(result, null, 2)
+    );
+
+    // 같은 서명의 중복 전송 방지
+    window.lastSignedProof = null;
+
+  } catch (error) {
+    showError(error);
+  } finally {
+    sendButton.disabled = !window.lastSignedProof;
+  }
+};
+</script>
+</body>
+</html>
