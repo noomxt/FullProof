@@ -1150,83 +1150,18 @@ contract ChainOfInvestigation is EIP712 {
      * 실제 Proof 발행 주체는 EIP-712 서명의 signer로 검증한다.
      */
     function anchorProof(
-        uint256 caseId,
-        uint256 stepId,
-        bytes32 claimHash,
-        bytes32 proofHash,
-        VerificationStatus result,
-        uint64 evidenceTimestamp,
-        uint64 deadline,
-        uint256 nonce,
-        address agency,
-        bytes calldata signature
-    ) external onlyOpen(caseId) {
-        require(isAuthorizedAgency(agency), "Agency is not authorized");
-        require(stepId < cases[caseId].stepCount, "Step index out of bounds");
-        require(claimHash != bytes32(0), "Claim hash is empty");
-        require(proofHash != bytes32(0), "Proof hash is empty");
-        require(deadline >= block.timestamp, "Signature expired");
-        require(nonce == agencyNonces[agency], "Invalid or used nonce");
-
-        AgencyInfo memory info = agencies[agency];
-        require(info.active, "Agency is inactive");
-        require(info.signer != address(0), "Agency signer not configured");
-
-        ProofRequest memory request = ProofRequest({
-            caseId: caseId,
-            stepId: stepId,
-            claimHash: claimHash,
-            proofHash: proofHash,
-            result: result,
-            evidenceTimestamp: evidenceTimestamp,
-            nonce: nonce,
-            deadline: deadline,
-            agency: agency
-        });
-
-        bytes32 digest = getProofTypedDataHash(request);
-        address recoveredSigner = digest.recover(signature);
-        require(recoveredSigner == info.signer, "Invalid electronic signature");
-
-        // replay 방지
-        agencyNonces[agency] = nonce + 1;
-
-        Step storage step = caseSteps[caseId][stepId];
-        step.claimHash = claimHash;
-        step.proofHash = proofHash;
-        step.status = result;
-        step.isCompleted = (result == VerificationStatus.VERIFIED);
-
-        uint256 proofId = nextProofId++;
-
-        proofHistory[caseId][stepId].push(
-            ProofRecord({
-                proofId: proofId,
-                agency: agency,
-                signer: recoveredSigner,
-                claimHash: claimHash,
-                proofHash: proofHash,
-                status: result,
-                evidenceTimestamp: evidenceTimestamp,
-                recordedAt: uint64(block.timestamp),
-                signatureDigest: digest
-            })
-        );
-
-        latestProofId[caseId][stepId] = proofId;
-
-        emit ProofAnchored(
-            caseId,
-            stepId,
-            proofId,
-            agency,
-            recoveredSigner,
-            claimHash,
-            proofHash,
-            result,
-            evidenceTimestamp,
-            digest
-        );
+        uint256,
+        uint256,
+        bytes32,
+        bytes32,
+        VerificationStatus,
+        uint64,
+        uint64,
+        uint256,
+        address,
+        bytes calldata
+    ) external pure {
+        revert("Legacy anchorProof disabled");
     }
 
     // FullProof v1.1 - 기관 독립 Proof 등록

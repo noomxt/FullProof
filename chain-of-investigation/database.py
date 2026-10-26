@@ -247,7 +247,8 @@ def save_v11_store(store_name, store):
     if store_name not in (
         "proof_drafts",
         "mapping_history",
-        "verification_results"
+        "verification_results",
+        "verification_idempotency"
     ):
         raise ValueError("Unsupported v1.1 store")
 
