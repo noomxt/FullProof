@@ -2804,6 +2804,32 @@ def create_v11_verification(
 
     return v11_success(result)
 
+@app.get("/api/v1/verifications/{verification_id}")
+def get_v11_verification(verification_id: str):
+    result = V11_VERIFICATION_RESULTS.get(verification_id)
+
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Verification not found"
+        )
+
+    fields = (
+        "verification_id",
+        "case_id",
+        "step_id",
+        "processing_status",
+        "verdict",
+        "verification_hash",
+        "verification_tx_hash",
+        "policy_hash",
+    )
+
+    return v11_success({
+        key: result[key]
+        for key in fields
+        if key in result
+    })
 
 # ------------------------------------------------------------
 # C. Administrator review request validation
