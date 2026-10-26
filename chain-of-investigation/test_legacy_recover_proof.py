@@ -14,10 +14,15 @@ class LegacyRecoverProofTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 410)
+        body = response.json()
+
+        self.assertFalse(body["success"])
+        self.assertIsNone(body["data"])
         self.assertEqual(
-            response.json()["detail"],
-            "Legacy Proof recovery disabled in v1.1",
+            body["error"]["code"],
+            "LEGACY_ROUTE_DISABLED",
         )
+        self.assertTrue(body["error"]["message"])
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ const root=fileURLToPath(new URL('../',import.meta.url));
 const require=createRequire(new URL('../frontend/package.json',import.meta.url));
 const {chromium}=require('playwright');
 const {JsonRpcProvider}=createRequire(new URL('../local-tools/package.json',import.meta.url))('ethers');
-const logs='/tmp/fullproof-team-aligned-tests';fs.mkdirSync(logs,{recursive:true});
+const logs='/tmp/fullproof-final-mentor-tests';fs.mkdirSync(logs,{recursive:true});
 const children=[];
 function start(args,cwd,name,env={}){const fd=fs.openSync(logs+'/'+name+'.log','w');const child=spawn(args[0],args.slice(1),{cwd:root+cwd,env:{...process.env,...env},stdio:['ignore',fd,fd]});children.push(child);return child}
 async function wait(fn){let last;for(let i=0;i<150;i++){try{return await fn()}catch(e){last=e;await new Promise(r=>setTimeout(r,100))}}throw last}
@@ -26,7 +26,7 @@ try{
  start([process.execPath,'node_modules/vite/bin/vite.js','--host','127.0.0.1'],'frontend','vite',{VITE_SERVICE_MODE:'api'});
  await wait(async()=>{assert((await fetch('http://127.0.0.1:5173')).ok)});
  browser=await chromium.launch({headless:true});const context=await browser.newContext({viewport:{width:1440,height:1000}});page=await context.newPage();
- const serverErrors=[];page.setDefaultTimeout(12000);page.on('response',async r=>{if(r.status()>=500){serverErrors.push(r.url());console.error('HTTP',r.status(),r.url(),await r.text())}});
+ const apiCalls=[];page.on('request',r=>{if(r.url().includes('/backend/api/'))apiCalls.push({method:r.method(),path:new URL(r.url()).pathname})});const serverErrors=[];page.setDefaultTimeout(12000);page.on('response',async r=>{if(r.status()>=500){serverErrors.push(r.url());console.error('HTTP',r.status(),r.url(),await r.text())}});
  let account=0;let rejectNext=false;const signatures=[],errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.exposeFunction('walletRequest',async({method,params=[]})=>{
   const signer=await provider.getSigner(account),address=await signer.getAddress();
@@ -43,6 +43,14 @@ try{
  });
  await page.addInitScript(()=>{window.ethereum={request:args=>window.walletRequest(args)};localStorage.setItem('fullproof.service.mode','api')});
  await page.goto('http://127.0.0.1:5173');await page.getByRole('heading',{name:'사건 관리 대시보드'}).waitFor();
+ await page.getByRole('button',{name:'다크 모드로 전환',exact:true}).click();
+ assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'dark');
+ assert.equal(await page.evaluate(()=>getComputedStyle(document.body).backgroundColor),'rgb(13, 17, 25)');
+ await page.reload();await page.getByRole('button',{name:'라이트 모드로 전환',exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'dark');
+ await page.getByRole('button',{name:'라이트 모드로 전환',exact:true}).click();assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'light');
+ await page.getByRole('button',{name:'다크 모드로 전환',exact:true}).focus();await page.keyboard.press('Space');assert.equal(await page.evaluate(()=>document.documentElement.dataset.theme),'dark');
+
  async function tab(name){await page.getByRole('button',{name,exact:true}).click()}
  async function role(value){await page.locator('details.settings').evaluate(e=>e.open=true);await page.getByLabel('시연 역할').selectOption(value);await page.waitForFunction(value=>document.querySelector('[aria-label="시연 역할"]')?.value===value&&!!document.querySelector('main h1'),value);await page.locator('details.settings').evaluate(e=>e.open=false)}
  async function create(scenario){
@@ -63,6 +71,7 @@ try{
  }
  async function verify(expected){await tab('증빙 비교·검증');await page.getByRole('button',{name:'검증 실행 및 판정 기록',exact:true}).click();await page.getByText('검증 응답 수신 · 판정과 온체인 상태를 확인하세요.',{exact:true}).waitFor();assert((await page.locator('.verdict-card').innerText()).includes(expected));}
  await create('supported');await proofAndMapping(true);await verify('일치 · 증빙 뒷받침');
+ await page.reload();await page.getByRole('button',{name:'기존 요청 상태 조회',exact:true}).first().click();await page.getByText('기존 검증 요청의 완료를 확인했습니다.',{exact:true}).waitFor();
  await page.getByRole('button',{name:'백엔드 판정 결과 다시 조회',exact:true}).click();await page.getByText(/서버 조회: COMPLETED/).waitFor();
  await page.getByRole('button',{name:'해시 재계산 및 온체인 대조',exact:true}).click();await page.getByText('계산·대조 완료 · 모든 항목 일치',{exact:true}).waitFor();
  const beforeRetry=await (await fetch('http://127.0.0.1:8000/api/v1/frontend/cases')).json();const existing=beforeRetry.find(c=>c.verifications.length);
@@ -82,7 +91,8 @@ try{
  const rows=await (await fetch('http://127.0.0.1:8000/api/v1/frontend/cases')).json();
  assert(rows.some(c=>c.status==='CLOSED'));assert(rows.some(c=>c.verifications.some(v=>v.verdict==='CONTRADICTED')));assert(rows.filter(c=>c.verifications.some(v=>v.verdict==='INSUFFICIENT')).length>=2);
  assert.equal(serverErrors.length,0,serverErrors.join('\n'));assert.equal(errors.length,0,errors.join('\n'));assert(signatures.filter(x=>x==='eth_signTypedData_v4').length>=3);assert(signatures.filter(x=>x==='personal_sign').length>=6);
- const result={pass:true,scope:'Chromium UI + official API + real Hardhat, injected EIP-1193 wallet, fixed AI extraction (no Gemini)',signatures,case_count:rows.length,checks:['supported→ACK→ACCEPTED→close','wallet rejection→pending mapping reuse','conflict blocked close','no Proof insufficient','no CALL_REF insufficient','reload history','mobile390 no overflow','real receipt queries','browser SHA-256/JCS and onchain comparison','identical UI retry reuses Verification ID','official GET Verification result endpoint'],page_errors:errors};
+ assert(apiCalls.some(c=>c.method==='GET'&&c.path.includes('/verification-requests/')));assert(apiCalls.some(c=>c.path.endsWith('/integrity-data')));assert(!apiCalls.some(c=>c.path.endsWith('/system/status')));assert(!apiCalls.some(c=>c.method==='POST'&&c.path.endsWith('/api/v1/verifications')));
+ const result={pass:true,scope:'Chromium UI + official API + real Hardhat, injected EIP-1193 wallet, fixed AI extraction (no Gemini)',signatures,case_count:rows.length,checks:['supported→ACK→ACCEPTED→close','wallet rejection→pending mapping reuse','conflict blocked close','no Proof insufficient','no CALL_REF insufficient','reload history','mobile390 no overflow','real receipt queries','browser SHA-256/JCS and onchain comparison','identical UI retry reuses Verification ID','official request status result query','reload and resume existing request without POST','frontend/status with agency wallet addresses','official integrity-data path','light/dark toggle and keyboard activation','theme persists on reload','dark theme full workflow and mobile390'],page_errors:errors};
  fs.writeFileSync(root+'docs/LOCAL_TEST_RESULTS.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));
 }catch(e){if(page){console.error((await page.locator('main').innerText()).slice(-11000));await page.screenshot({path:logs+'/failure.png',fullPage:true})}console.error(fs.readFileSync(logs+'/backend.log','utf8').slice(-7000));throw e}
 finally{if(browser)await browser.close();for(const child of children.reverse())if(child.exitCode===null)child.kill('SIGTERM')}

@@ -24,7 +24,13 @@
     "real receipt queries",
     "browser SHA-256/JCS and onchain comparison",
     "identical UI retry reuses Verification ID",
-    "official GET Verification result endpoint"
+    "official request status result query",
+    "reload and resume existing request without POST",
+    "frontend/status with agency wallet addresses",
+    "official integrity-data path",
+    "light/dark toggle and keyboard activation",
+    "theme persists on reload",
+    "dark theme full workflow and mobile390"
   ],
   "page_errors": []
 }

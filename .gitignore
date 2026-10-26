@@ -1,15 +1,33 @@
-node_modules/
-dist/
-.venv/
-__pycache__/
-*.pyc
+# Environment variables
 .env
 .env.*
+
+# Dependencies
+node_modules/
+
+# Local backups
+*_backup.py
+*_backup.sol
+*.bak
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Hardhat generated files
+artifacts/
+cache/
+
+# Python virtual environments
+.venv/
+venv/
+# Local frontend integration
 !.env.example
+dist/
 *.db
 *.db-*
 .local-run/
-artifacts/
-cache/
+.checks/
 local-demo.json
 *.tsbuildinfo
+test-tmp/

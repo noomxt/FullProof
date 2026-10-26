@@ -1,0 +1,49 @@
+{
+  "proof_content": {
+    "schema_version": "1.1",
+    "proof_id": "PROOF-001",
+    "proof_version": 1,
+    "case_id": "CASE-001",
+    "step_id": 0,
+    "issuer_agency_id": "TELECOM-001",
+    "agency_address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+    "proof_type": "CALL_LOG",
+    "call_id": "CALL-001",
+    "target_id": "SUBJECT-01",
+    "action_type": "PHONE_CALL",
+    "proof_occurred_at": "2026-10-18T05:00:00Z",
+    "proof_issued_at": "2026-10-18T05:30:00Z",
+    "result": "CALL_CONNECTED",
+    "source_sha256": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "domain": {
+    "name": "FullProof", "version": "2", "chainId": 31337,
+    "verifyingContract": "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+  },
+  "types": {
+    "ProofAttestation": [
+      {"name":"caseId","type":"uint256"},
+      {"name":"stepId","type":"uint256"},
+      {"name":"proofIdHash","type":"bytes32"},
+      {"name":"proofVersion","type":"uint256"},
+      {"name":"proofHash","type":"bytes32"},
+      {"name":"occurredAt","type":"uint64"},
+      {"name":"issuedAt","type":"uint64"},
+      {"name":"agency","type":"address"},
+      {"name":"nonce","type":"uint256"},
+      {"name":"deadline","type":"uint64"}
+    ]
+  },
+  "primaryType": "ProofAttestation",
+  "message": {
+    "caseId":"106553647379794099813520730154633791224374231427461071715514053160624980315844",
+    "stepId":"0",
+    "proofIdHash":"0x91d44a199b54f694b98a910bf1b667e72f59bd0af98394f47f1117a32668fd6c",
+    "proofVersion":"1",
+    "proofHash":"0xd9491d4f357151184e95ba4f4044686cb93b88daaa62cd6d443614b236ca793b",
+    "occurredAt":"1792299600", "issuedAt":"1792301400",
+    "agency":"0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+    "nonce":"0", "deadline":"1792782198"
+  },
+  "expected_digest":"0x0261a3ca1da9fddfe34b2d0e2643b1f3266b03a17c2d3cf5538074ea3e6e324b"
+}

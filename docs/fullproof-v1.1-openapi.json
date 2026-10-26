@@ -5,6 +5,22 @@
     "version": "2.0.0"
   },
   "paths": {
+    "/api/v1/system/status": {
+      "get": {
+        "summary": "Get V11 System Status",
+        "operationId": "get_v11_system_status_api_v1_system_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/proofs/drafts": {
       "post": {
         "summary": "Create Proof Draft",
@@ -387,124 +403,6 @@
         }
       }
     },
-    "/api/v1/cases/verify": {
-      "post": {
-        "summary": "Verify And Anchor Step",
-        "operationId": "verify_and_anchor_step_api_v1_cases_verify_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VerifyRequestSchema"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/cases/proofs/anchor": {
-      "post": {
-        "summary": "Anchor Signed Proof",
-        "operationId": "anchor_signed_proof_api_v1_cases_proofs_anchor_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AnchorProofSchema"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/cases/{case_id}/steps/{step_id}/sync": {
-      "post": {
-        "summary": "Sync Step From Blockchain",
-        "operationId": "sync_step_from_blockchain_api_v1_cases__case_id__steps__step_id__sync_post",
-        "parameters": [
-          {
-            "name": "case_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Case Id"
-            }
-          },
-          {
-            "name": "step_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Step Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/cases/{case_id}/steps/{step_id}/proof-history": {
       "get": {
         "summary": "Proof History",
@@ -687,62 +585,6 @@
             }
           }
         ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/cases/{case_id}/steps/{step_id}/recover-proof": {
-      "post": {
-        "summary": "Recover Proof",
-        "operationId": "recover_proof_api_v1_cases__case_id__steps__step_id__recover_proof_post",
-        "parameters": [
-          {
-            "name": "case_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Case Id"
-            }
-          },
-          {
-            "name": "step_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer",
-              "title": "Step Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RecoverProofSchema"
-              }
-            }
-          }
-        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -951,10 +793,83 @@
         }
       }
     },
-    "/api/v1/verifications/{verification_id}": {
+    "/api/v1/verification-requests": {
+      "post": {
+        "summary": "Start V11 Verification",
+        "operationId": "start_v11_verification_api_v1_verification_requests_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/V11VerificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/verification-requests/{verification_id}": {
       "get": {
-        "summary": "Get V11 Verification",
-        "operationId": "get_v11_verification_api_v1_verifications__verification_id__get",
+        "summary": "Get V11 Verification Request",
+        "operationId": "get_v11_verification_request_api_v1_verification_requests__verification_id__get",
+        "parameters": [
+          {
+            "name": "verification_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Verification Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/verifications/{verification_id}/integrity-data": {
+      "get": {
+        "summary": "Get V11 Integrity Data",
+        "operationId": "get_v11_integrity_data_api_v1_verifications__verification_id__integrity_data_get",
         "parameters": [
           {
             "name": "verification_id",
@@ -1038,80 +953,6 @@
   },
   "components": {
     "schemas": {
-      "AnchorProofSchema": {
-        "properties": {
-          "case_id": {
-            "type": "string",
-            "title": "Case Id"
-          },
-          "step_id": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Step Id"
-          },
-          "claim_text": {
-            "type": "string",
-            "title": "Claim Text"
-          },
-          "proof_text": {
-            "type": "string",
-            "title": "Proof Text"
-          },
-          "agency": {
-            "type": "string",
-            "title": "Agency"
-          },
-          "claim_hash": {
-            "type": "string",
-            "title": "Claim Hash"
-          },
-          "proof_hash": {
-            "type": "string",
-            "title": "Proof Hash"
-          },
-          "result": {
-            "type": "integer",
-            "maximum": 3.0,
-            "minimum": 0.0,
-            "title": "Result"
-          },
-          "evidence_timestamp": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Evidence Timestamp"
-          },
-          "nonce": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Nonce"
-          },
-          "deadline": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Deadline"
-          },
-          "signature": {
-            "type": "string",
-            "title": "Signature"
-          }
-        },
-        "type": "object",
-        "required": [
-          "case_id",
-          "step_id",
-          "claim_text",
-          "proof_text",
-          "agency",
-          "claim_hash",
-          "proof_hash",
-          "result",
-          "evidence_timestamp",
-          "nonce",
-          "deadline",
-          "signature"
-        ],
-        "title": "AnchorProofSchema"
-      },
       "CaseCreateSchema": {
         "properties": {
           "case_id": {
@@ -1275,19 +1116,6 @@
           "deadline"
         ],
         "title": "ProofDraftSchema"
-      },
-      "RecoverProofSchema": {
-        "properties": {
-          "tx_hash": {
-            "type": "string",
-            "title": "Tx Hash"
-          }
-        },
-        "type": "object",
-        "required": [
-          "tx_hash"
-        ],
-        "title": "RecoverProofSchema"
       },
       "StepCreateSchema": {
         "properties": {
@@ -1593,69 +1421,6 @@
           "type"
         ],
         "title": "ValidationError"
-      },
-      "VerifyRequestSchema": {
-        "properties": {
-          "case_id": {
-            "type": "string",
-            "title": "Case Id"
-          },
-          "step_id": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Step Id"
-          },
-          "raw_claim_text": {
-            "type": "string",
-            "title": "Raw Claim Text"
-          },
-          "proof": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Proof"
-          },
-          "evidence_deadline": {
-            "type": "string",
-            "title": "Evidence Deadline",
-            "default": "2026-12-31 23:59:59"
-          },
-          "agency": {
-            "type": "string",
-            "title": "Agency"
-          },
-          "signature": {
-            "type": "string",
-            "title": "Signature"
-          },
-          "nonce": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Nonce"
-          },
-          "deadline": {
-            "type": "integer",
-            "exclusiveMinimum": 0.0,
-            "title": "Deadline"
-          },
-          "evidence_timestamp": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Evidence Timestamp"
-          }
-        },
-        "type": "object",
-        "required": [
-          "case_id",
-          "step_id",
-          "raw_claim_text",
-          "proof",
-          "agency",
-          "signature",
-          "nonce",
-          "deadline",
-          "evidence_timestamp"
-        ],
-        "title": "VerifyRequestSchema"
       }
     }
   }

@@ -2,8 +2,8 @@
 from pathlib import Path
 import zipfile
 ROOT=Path(__file__).resolve().parent
-output=ROOT.parent/'FullProof_v1.1_Team_Aligned.zip'
-exclude={'node_modules','.venv','dist','__pycache__','.git','.local-run','artifacts','cache','test-tmp'}
+output=ROOT.parent/'FullProof_v1.1_Final_Mentor_Theme.zip'
+exclude={'node_modules','.venv','dist','__pycache__','.git','.local-run','artifacts','cache','test-tmp','.checks'}
 files=[]
 for p in ROOT.rglob('*'):
     rel=p.relative_to(ROOT)

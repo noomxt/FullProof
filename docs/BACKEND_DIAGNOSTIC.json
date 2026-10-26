@@ -1,9 +1,0 @@
-{
-  "scope": "Synthetic diagnostic, real local transaction, injected lost receipt response. No production data.",
-  "first_http": 503,
-  "records_after_lost_response": 1,
-  "retry_http": 201,
-  "records_after_backend_retry": 2,
-  "duplicate_gap_reproduced": true,
-  "note": "Normal completed-response retries are covered by the team cache; this tests a different failure window. The frontend blocks blind resubmission on ambiguous responses; backend/RPC reconciliation remains a team follow-up."
-}

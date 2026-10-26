@@ -85,12 +85,12 @@ def public_config():
                      admin_address=core.contract.functions.admin().call(),
                      reviewer_addresses=[v.strip() for v in os.getenv('V11_MAPPING_REVIEWERS', '').split(',') if v.strip()],
                      rpc_url=os.getenv('RPC_URL', 'http://127.0.0.1:8545'), domain_version='2')
-    return {'schema_version':'1.1', 'policy_hash':core.v11_sha256(core.POLICY), 'environment':'LOCAL_OFFICIAL_INTEGRATION', 'chain':chain,
+    return {'schema_version':'1.1', 'environment':'LOCAL_OFFICIAL_INTEGRATION', 'chain':chain,
             'ai':{'provider':'fixture' if FIXTURE else 'Gemini', 'is_simulated':FIXTURE,
-                  'key_configured':bool(os.getenv('GEMINI_API_KEY'))},
+                  'key_configured':bool(os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY'))},
             'capabilities':dict(claim_anchor=True,proof_attestation=True,verification_anchor=True,admin_review=True,close_case=True),
             'limitations':['로컬 합성 자료 전용 · 화면 역할 선택은 인증이 아닙니다.',
-                           'Verification 중복 방지는 팀 백엔드 구현을 사용합니다. 응답 불명확 시 자동 재제출하지 않습니다.',
+                           '검증은 서버 입력 조합별 기존 요청을 재사용합니다. 상태 불명확 시 재제출하지 않고 요청 ID로 조회합니다.',
                            '관리자 사유는 frontend_server를 거친 성공 응답만 보조 이력에 보관됩니다.']}
 
 
@@ -183,7 +183,9 @@ def case_view(record):
         except Exception as e:
             blockers=[str(e)]
     close = next((v for p,v in reversed(audit_rows()) if p==f'/api/v1/cases/{cid}/close'),{})
-    return dict(c, status='CLOSED' if c.get('is_closed') else 'OPEN', created_at=claims[0]['claim_created_at'] if claims else None,
+    from mentor_support import case_requests
+    requests=case_requests(cid,core)
+    return dict(c, verification_requests=requests, status='CLOSED' if c.get('is_closed') else 'OPEN', created_at=claims[0]['claim_created_at'] if claims else None,
                 scenario_id=next((s for s in ['contradicted','insufficient','ambiguous'] if s in cid),'supported'),
                 region='가상 지역',claims=claims,proofs=proofs,mappings=mappings,verifications=verifications,reviews=reviews,
                 close_eligible=eligible,close_blockers=blockers,close_tx_hash=hx(close.get('tx_hash')),closed_at=None)
@@ -227,9 +229,3 @@ if FIXTURE:
             return dict(schema_version='1.1',claim_id=claim['claim_id'],claim_version=claim['claim_version'],extraction_status='FAILED',actions=[],model_name='fixture-no-model',prompt_version='fixture-v1',review_required=True)
         return dict(schema_version='1.1',claim_id=claim['claim_id'],claim_version=claim['claim_version'],extraction_status='COMPLETED',actions=[dict(action_type='PHONE_CALL',action_result='SUCCESS',target_id='P001',occurred_at='2026-10-18T05:00:00Z',source_excerpt=text)],model_name='fixture-no-model',prompt_version='fixture-v1',review_required=False)
     module.extract_v11=fixture_extract
-
-
-@app.get('/api/v1/frontend/verifications/{verification_id}/integrity-data')
-def frontend_integrity(verification_id: str):
-    from frontend_integrity import integrity_data
-    return integrity_data(verification_id,core)

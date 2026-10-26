@@ -1,8 +1,9 @@
-/** Adapts UI models to official @019dd0b endpoints; no local business-rule verdicts. */
-import type {Case,Draft,Proof,System,Mapping,Scenario,Verification} from './api';
+/** UI adapter for official final-mentor-v11 @7998973. No client-side verdicts. */
+import type {Case,Draft,Proof,System,Mapping,Scenario,Verification,VerificationRequest} from './api';
 import {mappingMessage,reviewMessage,closeMessage} from './signing';
 import {signedMessage} from './wallet';
 import {computeIntegrity,type IntegrityData} from './integrity';
+import {startVerification} from './verificationRequests';
 const base=import.meta.env.VITE_API_BASE_URL||'/backend';
 export async function request<T>(path:string,body?:unknown):Promise<T>{
  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),150000);
@@ -15,14 +16,9 @@ export async function request<T>(path:string,body?:unknown):Promise<T>{
 }
 const getCase=(id:string)=>request<Case>('/api/v1/frontend/cases/'+encodeURIComponent(id));
 async function getConfig():Promise<System>{
- try{
-  const value=await request<System>('/api/v1/system/status');
-  if(!value.chain||!value.ai||!value.capabilities)throw Error('공식 system/status 응답 구조가 현재 화면 규격과 다릅니다. 최신 응답 명세를 확인해 주세요.');
-  return value;
- }catch(error){
-  if((error as {status?:number}).status!==404)throw error;
-  return request<System>('/api/v1/frontend/status');
- }
+ const value=await request<System>('/api/v1/frontend/status');
+ if(!value.chain||!value.ai||!value.capabilities)throw Error('frontend/status 응답 구조가 화면 규격과 다릅니다. 공식 백엔드 버전을 확인해 주세요.');
+ return value;
 }
 const time='2026-10-18T05:00:00Z';
 export const scenarios:Scenario[]=['supported','contradicted','insufficient','ambiguous'].map(id=>({id,title:({supported:'정상 일치',contradicted:'결과 불일치',insufficient:'증빙 부족',ambiguous:'연결 근거 부족'} as Record<string,string>)[id],note:'가상 통신사 자료',claim_text:'2026년 10월 18일 14시에 P001과 통화에 성공했다.',result:id==='insufficient'?null:id==='contradicted'?'CALL_FAILED':'CALL_CONNECTED'}));
@@ -81,25 +77,13 @@ async function dispatch(path:string,b?:Record<string,unknown>):Promise<unknown>{
   const c=await findClaim(String(b.claim_id)),claim=c.claims.find(x=>x.claim_id===b.claim_id&&x.claim_version===b.claim_version)!;
   const maps=c.mappings.filter(m=>m.claim_id===claim.claim_id&&m.claim_version===claim.claim_version&&m.mapping_status==='CONFIRMED');
   const proofs=c.proofs.filter(p=>maps.some(m=>m.proof_id===p.proof_id&&m.proof_version===p.proof_version));
-  const config=await getConfig();
-  const selectedRefs=proofs.map(p=>({proof_id:p.proof_id,proof_version:p.proof_version,proof_hash:p.proof_hash}));
-  const refsKey=(refs:{proof_id:string;proof_version:number;proof_hash:string}[])=>JSON.stringify([...refs].sort((a,b)=>a.proof_id<b.proof_id?-1:a.proof_id>b.proof_id?1:a.proof_version-b.proof_version));
-  const markerKey='fullproof.uncertain.verification.'+c.case_id+':'+claim.claim_id+':'+claim.claim_version;
-  const pending=localStorage.getItem(markerKey);
-  if(pending){
-   const prior=JSON.parse(pending) as {previous_ids:string[];proof_refs:{proof_id:string;proof_version:number;proof_hash:string}[];policy_hash?:string};
-   const recovered=c.verifications.find(v=>!prior.previous_ids.includes(v.verification_id)&&v.claim_ref.claim_id===claim.claim_id&&v.claim_ref.claim_version===claim.claim_version&&v.chain_status==='CONFIRMED'&&!!prior.policy_hash&&v.policy_hash===prior.policy_hash&&refsKey(v.proof_refs)===refsKey(prior.proof_refs||[]));
-   if(recovered){localStorage.removeItem(markerKey);if(refsKey(selectedRefs)===refsKey(prior.proof_refs)&&config.policy_hash===prior.policy_hash)return recovered;throw Error('이전 요청의 완료 기록을 확인했습니다. 현재 선택한 증빙을 확인한 뒤 검증을 다시 실행하세요.')}
-   throw Error('이전 검증 응답이 불명확합니다. 자동 재전송을 막았습니다. 상태 새로고침·검증 이력을 확인하고 백엔드 담당자와 처리 여부를 확인해 주세요.');
-  }
-  try{
-   const result=await request<Verification>(path,{claim:{case_id:c.case_id,claim_id:claim.claim_id,claim_version:claim.claim_version},proofs:proofs.map(content)});
-   return result;
-  }catch(error){
-   const status=(error as {status?:number}).status||0;
-   if(status===0||status>=500)localStorage.setItem(markerKey,JSON.stringify({previous_ids:c.verifications.map(v=>v.verification_id),proof_refs:selectedRefs,policy_hash:config.policy_hash,created_at:new Date().toISOString()}));
-   throw error;
-  }
+  return startVerification(request,{claim:{case_id:c.case_id,claim_id:claim.claim_id,claim_version:claim.claim_version},proofs:proofs.map(content)});
+ }
+ match=path.match(/^\/api\/v1\/verifications\/([^/]+)$/);
+ if(match&&!b){
+  const job=await request<VerificationRequest>('/api/v1/verification-requests/'+encodeURIComponent(match[1]));
+  if(job.request_state!=='CONFIRMED'||!job.result?.verification_tx_hash)throw Error('검증 요청 상태: '+job.request_state+' · 기존 요청 상태 조회에서 확인하세요.');
+  return job.result;
  }
  match=path.match(/^\/api\/v1\/verifications\/([^/]+)\/reviews$/);
  if(match){
@@ -119,7 +103,7 @@ async function dispatch(path:string,b?:Record<string,unknown>):Promise<unknown>{
   const cases=await request<Case[]>('/api/v1/frontend/cases');return cases.flatMap(c=>[...c.claims.map(x=>({request_id:x.claim_tx_hash,tx_hash:x.claim_tx_hash,chain_status:x.chain_status,kind:'CLAIM'})),...c.proofs.filter(x=>x.proof_tx_hash).map(x=>({request_id:x.proof_tx_hash,tx_hash:x.proof_tx_hash,chain_status:x.chain_status,kind:'PROOF'})),...c.verifications.filter(x=>x.verification_tx_hash).map(x=>({request_id:x.verification_tx_hash,tx_hash:x.verification_tx_hash,chain_status:x.chain_status,kind:'VERIFICATION'})),...(c.reviews||[]).filter(x=>x.review_tx_hash).map(x=>({request_id:x.review_tx_hash,tx_hash:x.review_tx_hash,chain_status:x.chain_status,kind:'REVIEW'})),...(c.close_tx_hash?[{request_id:c.close_tx_hash,tx_hash:c.close_tx_hash,chain_status:'CONFIRMED',kind:'CLOSE'}]:[])]);
  }
  match=path.match(/^\/api\/v1\/blockchain\/transactions\/(.+)$/);if(match)return request('/api/v1/frontend/transactions/'+match[1]);
- if(path.endsWith('/integrity'))return computeIntegrity(await request<IntegrityData>(path.replace('/api/v1/verifications/','/api/v1/frontend/verifications/')+'-data'));
+ if(path.endsWith('/integrity'))return computeIntegrity(await request<IntegrityData>(path+'-data'));
 
  return request(path,b);
 }

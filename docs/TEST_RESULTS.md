@@ -1,30 +1,45 @@
-# 테스트 결과 — 2026-10-26
+# 직접 실행한 테스트 — 2026-10-26
 
-## 직접 실행한 확인
+공식 기준: final-mentor-v11 @7998973a84f72e7c96ddb7f295c00e81fb6643d8.
 
-| 항목 | 결과 | 범위 |
+| 항목 | 결과 | 조건 |
 | --- | --- | --- |
-| 팀 백엔드·AI 회귀 테스트 | 119개 통과, 건너뜀 없음 | 별도 로컬 Hardhat 실거래 포함 |
-| 프론트 단위 테스트 | 38개 통과 | Mock, 요청 형식, 서명, 무결성, 응답 불명확 시 재전송 방지 |
-| TypeScript·Vite 빌드 | 통과 | frontend npm run build |
-| 팀 컨트랙트 컴파일 | 통과 | solc 0.8.34 |
-| Chromium 브라우저 E2E | 통과 | 로컬 API·Hardhat, 주입 EIP-1193 테스트 지갑, 고정 AI 추출 |
+| 프론트 테스트 | 50개 통과 | API·Mock·서명·브라우저 해시·진행 조회·오류·재조회 |
+| TypeScript / Vite 빌드 | 통과 | npm run build |
+| 공식 run_checks.py | 118개 통과, 건너뜀 없음 | 별도 로컬 Hardhat 18545 |
+| 공식 run_mentor_checks.py | 130개 통과, 건너뜀 없음 | 별도 로컬 Hardhat 18545 |
+| 컨트랙트 컴파일 | 통과 | 변경 없는 공식 Solidity, solc 0.8.34 |
+| 브라우저 E2E | 통과, 페이지 오류 없음 | Chromium + 실제 FastAPI + 로컬 Hardhat |
 
-브라우저에서는 SUPPORTED → 관리자 확인 → ACCEPTED → 사건 종결, CONTRADICTED 종결 차단, Proof 없음 INSUFFICIENT, CALL_REF 없음 INSUFFICIENT, 서명 거절 후 재시도, 새로고침 이력, 모바일 390px, 실거래 영수증, 브라우저 JCS/SHA-256 대조, 동일 요청 ID 재사용, 공식 Verification 결과 조회를 확인했습니다. 페이지 오류는 없었습니다.
+118과 130은 중복 테스트를 포함하므로 합산하지 않습니다. 팀원이 공유한 156개라는 수치는 팀의 실행 범위이며, 여기서는 저장소에 있는 두 공식 실행 스크립트의 실제 출력과 분리해 기록합니다. 원시 로그는 run_checks.txt, run_mentor_checks.txt, FRONTEND_TEST_RESULTS.txt, FRONTEND_BUILD_RESULTS.txt에 있습니다.
 
-원시 결과: LOCAL_TEST_RESULTS.json, TEAM_REGRESSION_RESULTS.txt, TEAM_CHAIN_RESULTS.json.
+## 브라우저에서 확인한 범위
 
-## 오류 진단에서 발견한 미해결 항목
+- 기관 EIP-712 서명, 매핑·관리자·종결 personal_sign을 주입 테스트 지갑으로 수행.
+- SUPPORTED → ACKNOWLEDGED만으로 종결 불가 → ACCEPTED → 사건 종결.
+- CONTRADICTED 및 두 가지 INSUFFICIENT에서 승인·종결 제한.
+- 지갑 서명 거절 후 기존 매핑 재사용.
+- async API 시작·GET 상태 조회·같은 입력 요청 ID 재사용.
+- 페이지 새로고침 후 기존 요청 상태 조회: 새 Verification POST 없이 완료 결과 확인.
+- frontend/status에서 등록 기관·관리자 지갑 설정 조회.
+- 공식 integrity-data 원문으로 브라우저 JCS/SHA-256 재계산·실제 체인 해시 대조.
+- 이력 재조회, 실제 거래 영수증 조회, 모바일 390px 수평 넘침 없음.
+- 네트워크 요청에서 system/status와 동기 POST verifications 미사용 확인.
 
-BACKEND_DIAGNOSTIC.json은 성공 판정 자료가 아니라 별도 장애 재현 결과입니다. 체인 거래 성공 후 완료 응답을 잃도록 주입하면 첫 요청 HTTP 503에 체인 기록 1건, 같은 요청을 직접 다시 POST하면 HTTP 201에 체인 기록 2건이 됩니다. 정상 완료 응답 이후의 중복 방지는 통과했으나, 거래 성공과 결과 저장 사이 장애 복구는 백엔드 후속 확인이 필요합니다.
+LOCAL_TEST_RESULTS.json에 확인 항목이 있습니다. 테스트 스크린샷은 내부 확인용이며 산출물에 포함하지 않습니다.
 
-프론트는 상태 0/5xx 등 불명확한 응답에서 자동 재전송하지 않고 표시를 보존하며, 일치하는 실제 새 결과가 조회될 때만 복구합니다. 이 조치는 다른 클라이언트의 직접 재전송이나 백엔드 장애 자체를 해결하지 않습니다.
+## 테마 추가 확인
 
-## 실행하지 않은 범위
+상단 라이트·다크 버튼, 키보드 Space 전환, 새로고침 시 선택 유지, 다크 모드의 전체 API 시연 흐름, 모바일 390px 수평 넘침 없음을 브라우저에서 확인했습니다. 테마 추가 후 TypeScript/Vite 빌드도 통과했습니다. 기존 50개 단위 테스트 및 공식 회귀 테스트 결과는 테마 추가 이전 실행이며, 테마 추가 후에는 관련 브라우저 E2E와 빌드를 다시 실행했습니다. 백엔드에는 변경이 없습니다.
 
-- 실제 MetaMask 브라우저 확장: 주입 테스트 지갑으로 대체했습니다.
-- 실제 Gemini 네트워크 호출: 고정 추출 응답을 사용했습니다.
-- 사용자 Windows PowerShell에서의 설치·실행: Linux 환경에서 검사했습니다.
-- 다중 서버, 운영 배포, 실제 기관 데이터, 전체 SQLite 복구.
+## 장애·진행 상태
 
-받은 백엔드 ZIP에는 /api/v1/system/status가 없습니다. 팀원의 로컬 구현을 받기 전까지 조회 전용 /api/v1/frontend/status를 404 시에만 사용합니다.
+프론트 단위 테스트에서는 PROCESSING·SUBMITTED·FAILED·UNKNOWN, 응답 유실, 조회 실패, 대기 시간 초과, ID 불일치, 거래 없는 완료 응답, 저장된 요청 복귀를 확인했습니다. 실패·불명확 응답에서 자동 POST하지 않습니다.
+
+공식 멘토 회귀 테스트에는 거래 성공 후 응답 유실 복구, 동시 요청 재사용, 서버 재시작 후 재사용, 매핑·추가 Proof 변경에 따른 새 판정이 포함되어 있습니다. 이전 Team_Aligned의 중복 장애 재현을 이 버전의 미해결 결함이라고 표시하지 않습니다.
+
+## 직접 확인하지 않은 범위
+
+실제 MetaMask 브라우저 확장과 팝업, 외부 Gemini 호출, 사용자 Windows 설치·실행, 운영 배포·다중 서버·기관 인증·전체 SQLite 복구. 브라우저 테스트는 주입 EIP-1193 지갑과 고정 AI 추출을 사용했고, 실거래는 공개 로컬 테스트 계정으로 수행했습니다. 자동 실행 도구의 사용자 Windows 재현 확인은 남아 있습니다.
+
+프론트와 별도 실행 도구를 추가했으며 공식 백엔드·AI·DB·컨트랙트 소스는 수정하지 않았습니다.
