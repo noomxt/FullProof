@@ -1,0 +1,145 @@
+{
+  "mock_data": true,
+  "expected_verdict": "SUPPORTED",
+  "comparison": {
+    "claim_result": "SUCCESS",
+    "normalized_proof_result": "SUCCESS"
+  },
+  "requests": {
+    "case_create": {
+      "case_id": "CASE-DEMO-SUPPORTED",
+      "title": "AI MVP SUPPORTED"
+    },
+    "step_create": {
+      "step_name": "통화 확인",
+      "is_required": true
+    },
+    "claim_create": {
+      "claim_id": "CLAIM-DEMO-SUPPORTED",
+      "claim_version": 1,
+      "step_id": 0,
+      "claim_text": "2026년 10월 18일 오후 2시에 SUBJECT-01과 통화 연결에 성공했다. CALL_REF[TELECOM-001:CALL-DEMO-SUPPORTED]"
+    },
+    "extract": {
+      "case_id": "CASE-DEMO-SUPPORTED",
+      "claim_version": 1
+    },
+    "proof_draft_base": {
+      "proof_content": {
+        "schema_version": "1.1",
+        "proof_id": "PROOF-DEMO-SUPPORTED",
+        "proof_version": 1,
+        "case_id": "CASE-DEMO-SUPPORTED",
+        "step_id": 0,
+        "issuer_agency_id": "TELECOM-001",
+        "agency_address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "proof_type": "CALL_LOG",
+        "call_id": "CALL-DEMO-SUPPORTED",
+        "target_id": "SUBJECT-01",
+        "action_type": "PHONE_CALL",
+        "proof_occurred_at": "2026-10-18T05:00:00Z",
+        "proof_issued_at": "2026-10-18T05:30:00Z",
+        "result": "CALL_CONNECTED",
+        "source_sha256": "0x0fa0b9545a7a4be1ad76d43517d14f59f73474f36edfdca123963a1ff821a6e4"
+      },
+      "source_text": "{\"action_type\":\"PHONE_CALL\",\"call_id\":\"CALL-DEMO-SUPPORTED\",\"issuer_agency_id\":\"TELECOM-001\",\"proof_issued_at\":\"2026-10-18T05:30:00Z\",\"proof_occurred_at\":\"2026-10-18T05:00:00Z\",\"result\":\"CALL_CONNECTED\",\"target_id\":\"SUBJECT-01\"}"
+    },
+    "mapping_create": {
+      "case_id": "CASE-DEMO-SUPPORTED",
+      "step_id": 0,
+      "claim_version": 1,
+      "claim_text": "2026년 10월 18일 오후 2시에 SUBJECT-01과 통화 연결에 성공했다. CALL_REF[TELECOM-001:CALL-DEMO-SUPPORTED]",
+      "proof_id": "PROOF-DEMO-SUPPORTED",
+      "proof_version": 1,
+      "issuer_agency_id": "TELECOM-001",
+      "call_id": "CALL-DEMO-SUPPORTED",
+      "mapping_method": "MANUAL_SELECTION",
+      "mapping_status": "PENDING"
+    },
+    "verification": {
+      "claim": {
+        "case_id": "CASE-DEMO-SUPPORTED",
+        "claim_id": "CLAIM-DEMO-SUPPORTED",
+        "claim_version": 1
+      },
+      "proofs": [
+        {
+          "schema_version": "1.1",
+          "proof_id": "PROOF-DEMO-SUPPORTED",
+          "proof_version": 1,
+          "case_id": "CASE-DEMO-SUPPORTED",
+          "step_id": 0,
+          "agency_address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+          "proof_type": "CALL_LOG",
+          "issuer_agency_id": "TELECOM-001",
+          "call_id": "CALL-DEMO-SUPPORTED",
+          "target_id": "SUBJECT-01",
+          "action_type": "PHONE_CALL",
+          "proof_occurred_at": "2026-10-18T05:00:00Z",
+          "proof_issued_at": "2026-10-18T05:30:00Z",
+          "result": "CALL_CONNECTED",
+          "source_sha256": "0x0fa0b9545a7a4be1ad76d43517d14f59f73474f36edfdca123963a1ff821a6e4",
+          "proof_hash": "0xa5cd921e9d0f5d62a58cce889855696207a82fad21b8a7d4d4a2a530352761b2"
+        }
+      ]
+    }
+  },
+  "expected_extraction": {
+    "success": true,
+    "data": {
+      "schema_version": "1.1",
+      "claim_id": "CLAIM-DEMO-SUPPORTED",
+      "claim_version": 1,
+      "extraction_status": "COMPLETED",
+      "actions": [
+        {
+          "action_type": "PHONE_CALL",
+          "action_result": "SUCCESS",
+          "target_id": "SUBJECT-01",
+          "occurred_at": "2026-10-18T05:00:00Z",
+          "source_excerpt": "2026년 10월 18일 오후 2시에 SUBJECT-01과 통화 연결에 성공했다."
+        }
+      ],
+      "model_name": "offline-demo-fixture",
+      "prompt_version": "extract-v1.1-prompt-v2",
+      "review_required": false
+    },
+    "error": null
+  },
+  "expected_verification": {
+    "success": true,
+    "data": {
+      "schema_version": "1.1",
+      "verification_id": "VERIFY-DEMO-SUPPORTED",
+      "case_id": "CASE-DEMO-SUPPORTED",
+      "step_id": 0,
+      "claim_ref": {
+        "claim_id": "CLAIM-DEMO-SUPPORTED",
+        "claim_version": 1,
+        "claim_hash": "0x1b29619cff6101a55b5111dca589a3e4648a7172a3ac3dd8f009c6013f3ff36f"
+      },
+      "proof_refs": [
+        {
+          "proof_id": "PROOF-DEMO-SUPPORTED",
+          "proof_version": 1,
+          "proof_hash": "0xa5cd921e9d0f5d62a58cce889855696207a82fad21b8a7d4d4a2a530352761b2"
+        }
+      ],
+      "processing_status": "COMPLETED",
+      "verdict": "SUPPORTED",
+      "conflicts": [],
+      "missing_information": [],
+      "reason_text": "기관 Proof가 필수 비교 조건과 주장을 뒷받침합니다.",
+      "evidence_refs": [
+        "PROOF-DEMO-SUPPORTED"
+      ],
+      "review_required": false,
+      "decision_policy_version": "policy-v1",
+      "policy_hash": "0x7f1088c36dc3ce97d3a67991e76b7fc3a3b0e48b1ef1eaaf5e6477af88268976",
+      "proof_refs_hash": "0xf6fd58348d987ec6751022457e1859c911e10d728e3782a168dd0eeb0bd2e600",
+      "verification_tx_hash": null,
+      "verification_hash": "0x5fc062bee6021dba2f86b7cfc13acd7186901bee2de2c287f8becc75b2963c09"
+    },
+    "error": null
+  }
+}

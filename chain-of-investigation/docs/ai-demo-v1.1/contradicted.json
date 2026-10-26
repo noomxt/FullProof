@@ -1,0 +1,152 @@
+{
+  "mock_data": true,
+  "expected_verdict": "CONTRADICTED",
+  "comparison": {
+    "claim_result": "SUCCESS",
+    "normalized_proof_result": "FAIL"
+  },
+  "requests": {
+    "case_create": {
+      "case_id": "CASE-DEMO-CONTRADICTED",
+      "title": "AI MVP CONTRADICTED"
+    },
+    "step_create": {
+      "step_name": "통화 확인",
+      "is_required": true
+    },
+    "claim_create": {
+      "claim_id": "CLAIM-DEMO-CONTRADICTED",
+      "claim_version": 1,
+      "step_id": 0,
+      "claim_text": "2026년 10월 18일 오후 2시에 SUBJECT-01과 통화 연결에 성공했다. CALL_REF[TELECOM-001:CALL-DEMO-CONTRADICTED]"
+    },
+    "extract": {
+      "case_id": "CASE-DEMO-CONTRADICTED",
+      "claim_version": 1
+    },
+    "proof_draft_base": {
+      "proof_content": {
+        "schema_version": "1.1",
+        "proof_id": "PROOF-DEMO-CONTRADICTED",
+        "proof_version": 1,
+        "case_id": "CASE-DEMO-CONTRADICTED",
+        "step_id": 0,
+        "issuer_agency_id": "TELECOM-001",
+        "agency_address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "proof_type": "CALL_LOG",
+        "call_id": "CALL-DEMO-CONTRADICTED",
+        "target_id": "SUBJECT-01",
+        "action_type": "PHONE_CALL",
+        "proof_occurred_at": "2026-10-18T05:00:00Z",
+        "proof_issued_at": "2026-10-18T05:30:00Z",
+        "result": "CALL_FAILED",
+        "source_sha256": "0x8685fa0d620e094c5523997390a2e92fdda8575feb8d679d448f157415c25b7f"
+      },
+      "source_text": "{\"action_type\":\"PHONE_CALL\",\"call_id\":\"CALL-DEMO-CONTRADICTED\",\"issuer_agency_id\":\"TELECOM-001\",\"proof_issued_at\":\"2026-10-18T05:30:00Z\",\"proof_occurred_at\":\"2026-10-18T05:00:00Z\",\"result\":\"CALL_FAILED\",\"target_id\":\"SUBJECT-01\"}"
+    },
+    "mapping_create": {
+      "case_id": "CASE-DEMO-CONTRADICTED",
+      "step_id": 0,
+      "claim_version": 1,
+      "claim_text": "2026년 10월 18일 오후 2시에 SUBJECT-01과 통화 연결에 성공했다. CALL_REF[TELECOM-001:CALL-DEMO-CONTRADICTED]",
+      "proof_id": "PROOF-DEMO-CONTRADICTED",
+      "proof_version": 1,
+      "issuer_agency_id": "TELECOM-001",
+      "call_id": "CALL-DEMO-CONTRADICTED",
+      "mapping_method": "MANUAL_SELECTION",
+      "mapping_status": "PENDING"
+    },
+    "verification": {
+      "claim": {
+        "case_id": "CASE-DEMO-CONTRADICTED",
+        "claim_id": "CLAIM-DEMO-CONTRADICTED",
+        "claim_version": 1
+      },
+      "proofs": [
+        {
+          "schema_version": "1.1",
+          "proof_id": "PROOF-DEMO-CONTRADICTED",
+          "proof_version": 1,
+          "case_id": "CASE-DEMO-CONTRADICTED",
+          "step_id": 0,
+          "agency_address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+          "proof_type": "CALL_LOG",
+          "issuer_agency_id": "TELECOM-001",
+          "call_id": "CALL-DEMO-CONTRADICTED",
+          "target_id": "SUBJECT-01",
+          "action_type": "PHONE_CALL",
+          "proof_occurred_at": "2026-10-18T05:00:00Z",
+          "proof_issued_at": "2026-10-18T05:30:00Z",
+          "result": "CALL_FAILED",
+          "source_sha256": "0x8685fa0d620e094c5523997390a2e92fdda8575feb8d679d448f157415c25b7f",
+          "proof_hash": "0xa4a18de4bf62c4b949d746f212a8e766eb45b67c227dc3439915e6725a7b199a"
+        }
+      ]
+    }
+  },
+  "expected_extraction": {
+    "success": true,
+    "data": {
+      "schema_version": "1.1",
+      "claim_id": "CLAIM-DEMO-CONTRADICTED",
+      "claim_version": 1,
+      "extraction_status": "COMPLETED",
+      "actions": [
+        {
+          "action_type": "PHONE_CALL",
+          "action_result": "SUCCESS",
+          "target_id": "SUBJECT-01",
+          "occurred_at": "2026-10-18T05:00:00Z",
+          "source_excerpt": "2026년 10월 18일 오후 2시에 SUBJECT-01과 통화 연결에 성공했다."
+        }
+      ],
+      "model_name": "offline-demo-fixture",
+      "prompt_version": "extract-v1.1-prompt-v2",
+      "review_required": false
+    },
+    "error": null
+  },
+  "expected_verification": {
+    "success": true,
+    "data": {
+      "schema_version": "1.1",
+      "verification_id": "VERIFY-DEMO-CONTRADICTED",
+      "case_id": "CASE-DEMO-CONTRADICTED",
+      "step_id": 0,
+      "claim_ref": {
+        "claim_id": "CLAIM-DEMO-CONTRADICTED",
+        "claim_version": 1,
+        "claim_hash": "0x59519c0bc8725ef433e585c9a531dce4484495ab91b72a1de8f7062899c43c33"
+      },
+      "proof_refs": [
+        {
+          "proof_id": "PROOF-DEMO-CONTRADICTED",
+          "proof_version": 1,
+          "proof_hash": "0xa4a18de4bf62c4b949d746f212a8e766eb45b67c227dc3439915e6725a7b199a"
+        }
+      ],
+      "processing_status": "COMPLETED",
+      "verdict": "CONTRADICTED",
+      "conflicts": [
+        {
+          "field": "action_result",
+          "claim_value": "SUCCESS",
+          "proof_value": "FAIL",
+          "reason_code": "RESULT_MISMATCH"
+        }
+      ],
+      "missing_information": [],
+      "reason_text": "연결이 확인된 유효 Proof와 주장 사이에 충돌이 있습니다.",
+      "evidence_refs": [
+        "PROOF-DEMO-CONTRADICTED"
+      ],
+      "review_required": true,
+      "decision_policy_version": "policy-v1",
+      "policy_hash": "0x7f1088c36dc3ce97d3a67991e76b7fc3a3b0e48b1ef1eaaf5e6477af88268976",
+      "proof_refs_hash": "0x525772f6ff6035cd60c416643e3feab398a9c195eb884354fdc08d94589ab7cd",
+      "verification_tx_hash": null,
+      "verification_hash": "0x4d3af97e5551459fb2769245246d419ef90dbafd42e01d5fb22bcb8294dfb53b"
+    },
+    "error": null
+  }
+}
