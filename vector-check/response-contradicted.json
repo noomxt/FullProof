@@ -1,0 +1,43 @@
+{
+  "success": true,
+  "data": {
+    "schema_version": "1.1",
+    "verification_id": "VERIFY-CONTRACT-CONTRADICTED",
+    "case_id": "CASE-001",
+    "step_id": 0,
+    "claim_ref": {
+      "claim_id": "CLAIM-CONTRACT",
+      "claim_version": 1,
+      "claim_hash": "0xdde52ee412270121cc9a93a478a8c412f2666a5a31320f70b4441d2ce8c7c059"
+    },
+    "proof_refs": [
+      {
+        "proof_id": "PROOF-001",
+        "proof_version": 1,
+        "proof_hash": "0xc408caabdbdfcb3ffe71c6fc88fdf5f66b73df8ec7b2cba580f25baa14d44d7b"
+      }
+    ],
+    "processing_status": "COMPLETED",
+    "verdict": "CONTRADICTED",
+    "conflicts": [
+      {
+        "field": "action_result",
+        "claim_value": "SUCCESS",
+        "proof_value": "FAIL",
+        "reason_code": "RESULT_MISMATCH"
+      }
+    ],
+    "missing_information": [],
+    "reason_text": "연결이 확인된 유효 Proof와 주장 사이에 충돌이 있습니다.",
+    "evidence_refs": [
+      "PROOF-001"
+    ],
+    "review_required": true,
+    "decision_policy_version": "policy-v1",
+    "policy_hash": "0x7f1088c36dc3ce97d3a67991e76b7fc3a3b0e48b1ef1eaaf5e6477af88268976",
+    "proof_refs_hash": "0xab488a4e892645ea07bff91b1d8d4451f58ebd4300b3762260c6a0b8cad64ab1",
+    "verification_tx_hash": null,
+    "verification_hash": "0x82ae9b31a2834d2900c8cb6865b524c3620045e3632751ee9e688662fc104273"
+  },
+  "error": null
+}

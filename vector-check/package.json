@@ -1,0 +1,6 @@
+{
+	"dependencies": {
+		"ethers": "^6.17.0",
+		"canonicalize": "^5.1.0"
+	}
+}
