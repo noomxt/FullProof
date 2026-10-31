@@ -1,0 +1,52 @@
+
+from hash_utils import hash_verification
+
+verification = {
+    "schema_version": "1.1",
+    "verification_id": "VERIFY-CONTRADICTED",
+    "case_id": "CASE-001",
+    "step_id": 0,
+    "claim_ref": {
+        "claim_id": "CLAIM-001",
+        "claim_version": 1,
+        "claim_hash": "0x4fe4ad2300607ed1e2f97c8dcf821e0541222692baabf8bdb572a64bede2d9cd",
+    },
+    "proof_refs": [
+        {
+            "proof_id": "PROOF-001",
+            "proof_version": 1,
+            "proof_hash": "0xde862cc8e8c0a80fe90e69ed114d23f6b90f46ca2610a2f25b27bbdc769a2426",
+        }
+    ],
+    "processing_status": "COMPLETED",
+    "verdict": "CONTRADICTED",
+    "conflicts": [
+        {
+            "field": "action_result",
+            "claim_value": "SUCCESS",
+            "proof_value": "FAIL",
+            "reason_code": "RESULT_MISMATCH",
+        }
+    ],
+    "missing_information": [],
+    "reason_text": "연결이 확인된 유효 Proof와 주장 사이에 충돌이 있습니다.",
+    "evidence_refs": ["PROOF-001"],
+    "review_required": True,
+    "decision_policy_version": "policy-v1",
+    "policy_hash": "0x7f1088c36dc3ce97d3a67991e76b7fc3a3b0e48b1ef1eaaf5e6477af88268976",
+    "proof_refs_hash": "0x01004f60f29587f5020aa065c0f4515f20f07d13c17151c557e9a4f2a2f7c8f8",
+}
+
+expected_hash = (
+    "0xf2de7f178852ce463a00b24b6b4a8ea65d71e30be6404ac29fa3c9c42a544ff1"
+)
+
+actual_hash = hash_verification(verification)
+
+print("기대 해시:", expected_hash)
+print("실제 해시:", actual_hash)
+print("해시 일치:", expected_hash == actual_hash)
+
+assert expected_hash == actual_hash
+
+print("STEP 64 테스트 통과!")

@@ -1,0 +1,22 @@
+/** Mock role navigation and production theme rendering. Screenshots are internal. */
+import {spawn} from 'node:child_process';import {createRequire} from 'node:module';import {fileURLToPath} from 'node:url';import fs from 'node:fs';import assert from 'node:assert/strict';
+const root=fileURLToPath(new URL('../',import.meta.url));const {chromium}=createRequire(new URL('../frontend/package.json',import.meta.url))('playwright');const dir=root+'.checks/visual';fs.mkdirSync(dir,{recursive:true});const fd=fs.openSync(dir+'/preview.log','w');
+const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','preview','--host','127.0.0.1','--port','5273'],{cwd:root+'frontend',stdio:['ignore',fd,fd]});let browser;
+try{
+ for(let i=0;i<100;i++){try{if((await fetch('http://127.0.0.1:5273')).ok)break}catch{}await new Promise(r=>setTimeout(r,100))}
+ browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:1500,height:1100}});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(()=>{localStorage.setItem('fullproof.service.mode','mock');localStorage.setItem('fullproof.theme','light')});
+ await page.goto('http://127.0.0.1:5273');await page.getByRole('button',{name:'수사담당자로 시작'}).click();await page.getByRole('heading',{name:'수사담당자 업무 대시보드',exact:true}).waitFor();await page.getByRole('link',{name:'가상 실종 사건 · 안산 중앙',exact:true}).waitFor();await page.evaluate(()=>document.fonts.ready);
+ assert.equal(await page.getByText('현재 일치 판정',{exact:true}).count(),0);assert(await page.getByText('증빙이 뒷받침하는 검증',{exact:true}).isVisible());
+ await page.locator('details.scenario-picker').evaluate(e=>e.open=true);await page.getByRole('button',{name:'시연 사례 정상 일치',exact:true}).click();await page.getByRole('button',{name:'선택한 시연 사건 열기',exact:true}).click();assert(page.url().includes('DEMO-2026-001'));await page.getByRole('button',{name:'수사 기록',exact:true}).click();await page.getByRole('button',{name:'원문 등록 및 고정',exact:true}).waitFor();
+ for(const [role,title] of [['OFFICER','수사담당자 업무 대시보드'],['AGENCY','원천기관 증빙 데스크'],['ADMIN','관리자 검토 대시보드']]){
+  await page.getByLabel('시연 역할').selectOption(role);await page.getByRole('heading',{name:title,exact:true}).waitFor();assert.equal(new URL(page.url()).pathname,'/workspace');await page.getByRole('link',{name:'가상 실종 사건 · 안산 중앙',exact:true}).waitFor();await page.evaluate(()=>document.fonts.ready);
+  if(role!=='OFFICER')assert.equal(await page.locator('details.scenario-picker').count(),0);
+  await page.screenshot({path:dir+'/'+role+'-light.png',fullPage:true,animations:'disabled'});await page.getByRole('button',{name:'다크 모드로 전환',exact:true}).click();await page.screenshot({path:dir+'/'+role+'-dark.png',fullPage:true,animations:'disabled'});await page.getByRole('button',{name:'라이트 모드로 전환',exact:true}).click();
+  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false,role+' dashboard overflow');await page.screenshot({path:dir+'/'+role+'-mobile.png',fullPage:true,animations:'disabled'});await page.setViewportSize({width:1500,height:1100});
+  await page.getByRole('link',{name:'가상 실종 사건 · 안산 중앙',exact:true}).click();await page.getByRole('button',{name:'상태 새로고침',exact:true}).waitFor();
+  if(role==='AGENCY'){assert.equal(await page.getByRole('button',{name:'수사 기록',exact:true}).count(),0);assert.equal(await page.getByRole('button',{name:'관리자 확인',exact:true}).count(),0);await page.getByRole('button',{name:'가상 Proof 발급·서명 준비',exact:true}).waitFor()}
+  if(role==='ADMIN'){assert.equal(await page.getByRole('button',{name:'수사 기록',exact:true}).count(),0);await page.getByRole('button',{name:'관리자 확인 기록',exact:true}).waitFor()}
+  if(role==='OFFICER')assert.equal(await page.getByRole('button',{name:'관리자 확인',exact:true}).count(),0);
+ }
+ assert.equal(errors.length,0,errors.join('\n'));const report={pass:true,scope:'Production frontend preview, browser Mock only',checks:['role switch navigates to distinct home','role-specific menus','reuse existing selected scenario','latest verdict card wording','three desktop light and dark role screens','three mobile role screens without horizontal overflow'],page_errors:errors};fs.writeFileSync(root+'docs/ROLE_UI_RESULTS.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
+}finally{if(browser)await browser.close();server.kill('SIGTERM')}

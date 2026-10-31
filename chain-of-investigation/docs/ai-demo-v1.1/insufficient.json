@@ -1,0 +1,90 @@
+{
+  "mock_data": true,
+  "expected_verdict": "INSUFFICIENT",
+  "comparison": {
+    "claim_result": "SUCCESS",
+    "normalized_proof_result": null
+  },
+  "requests": {
+    "case_create": {
+      "case_id": "CASE-DEMO-INSUFFICIENT",
+      "title": "AI MVP INSUFFICIENT"
+    },
+    "step_create": {
+      "step_name": "통화 확인",
+      "is_required": true
+    },
+    "claim_create": {
+      "claim_id": "CLAIM-DEMO-INSUFFICIENT",
+      "claim_version": 1,
+      "step_id": 0,
+      "claim_text": "2026년 10월 18일 오후 2시에 SUBJECT-01과 통화 연결에 성공했다. CALL_REF[TELECOM-001:CALL-DEMO-INSUFFICIENT]"
+    },
+    "extract": {
+      "case_id": "CASE-DEMO-INSUFFICIENT",
+      "claim_version": 1
+    },
+    "proof_draft_base": null,
+    "mapping_create": null,
+    "verification": {
+      "claim": {
+        "case_id": "CASE-DEMO-INSUFFICIENT",
+        "claim_id": "CLAIM-DEMO-INSUFFICIENT",
+        "claim_version": 1
+      },
+      "proofs": []
+    }
+  },
+  "expected_extraction": {
+    "success": true,
+    "data": {
+      "schema_version": "1.1",
+      "claim_id": "CLAIM-DEMO-INSUFFICIENT",
+      "claim_version": 1,
+      "extraction_status": "COMPLETED",
+      "actions": [
+        {
+          "action_type": "PHONE_CALL",
+          "action_result": "SUCCESS",
+          "target_id": "SUBJECT-01",
+          "occurred_at": "2026-10-18T05:00:00Z",
+          "source_excerpt": "2026년 10월 18일 오후 2시에 SUBJECT-01과 통화 연결에 성공했다."
+        }
+      ],
+      "model_name": "offline-demo-fixture",
+      "prompt_version": "extract-v1.1-prompt-v2",
+      "review_required": false
+    },
+    "error": null
+  },
+  "expected_verification": {
+    "success": true,
+    "data": {
+      "schema_version": "1.1",
+      "verification_id": "VERIFY-DEMO-INSUFFICIENT",
+      "case_id": "CASE-DEMO-INSUFFICIENT",
+      "step_id": 0,
+      "claim_ref": {
+        "claim_id": "CLAIM-DEMO-INSUFFICIENT",
+        "claim_version": 1,
+        "claim_hash": "0xff4e4fa8c4070a9e6cc5b13909c538bd4518049ecdee853dafec1841d5b17e41"
+      },
+      "proof_refs": [],
+      "processing_status": "COMPLETED",
+      "verdict": "INSUFFICIENT",
+      "conflicts": [],
+      "missing_information": [
+        "PROOF_MISSING"
+      ],
+      "reason_text": "필수 정보 또는 유효한 연결 근거가 부족합니다.",
+      "evidence_refs": [],
+      "review_required": true,
+      "decision_policy_version": "policy-v1",
+      "policy_hash": "0x7f1088c36dc3ce97d3a67991e76b7fc3a3b0e48b1ef1eaaf5e6477af88268976",
+      "proof_refs_hash": "0x5ffbb1e7a6f371aff91971df528a7cc7cd1503e6460e51e1d863a3d9958cbb2f",
+      "verification_tx_hash": null,
+      "verification_hash": "0xc4a0c63c2ba441e8e7aecad33cb247872cafcec3d5c5186f7ba4f211087bcd66"
+    },
+    "error": null
+  }
+}

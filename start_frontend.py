@@ -1,4 +1,4 @@
-"""Frontend-only demo: no Python packages, Gemini key, backend or wallet needed."""
+"""Start frontend only. Requires the official backend to be running separately."""
 from pathlib import Path
 import hashlib
 import os
@@ -16,8 +16,8 @@ def main():
     if not marker.exists() or marker.read_text()!=h:
         subprocess.run([npm,'ci'],cwd=ROOT,check=True)
         marker.write_text(h)
-    env={**os.environ,'VITE_SERVICE_MODE':'mock'}
-    print('FRONTEND MOCK: no AI / wallet / blockchain calls. http://127.0.0.1:5173',flush=True)
+    env={**os.environ}
+    print('Frontend (official API only): http://127.0.0.1:5173 ; start backend separately, or use py start_connected.py --live.',flush=True)
     try:subprocess.run([node,'node_modules/vite/bin/vite.js','--host','127.0.0.1','--port','5173','--strictPort','--open'],cwd=ROOT,env=env,check=True)
     except KeyboardInterrupt:pass
 if __name__=='__main__':main()

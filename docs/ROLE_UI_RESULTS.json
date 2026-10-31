@@ -1,0 +1,13 @@
+{
+  "pass": true,
+  "scope": "Production frontend preview, browser Mock only",
+  "checks": [
+    "role switch navigates to distinct home",
+    "role-specific menus",
+    "reuse existing selected scenario",
+    "latest verdict card wording",
+    "three desktop light and dark role screens",
+    "three mobile role screens without horizontal overflow"
+  ],
+  "page_errors": []
+}

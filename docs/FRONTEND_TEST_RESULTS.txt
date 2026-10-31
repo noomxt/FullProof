@@ -1,0 +1,15 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> fullproof@1.1.0 test
+> vitest run --reporter=dot
+
+
+ RUN  v3.2.7 /workspace/scratch/76c8d54c68dc/fullproof-role-workspace/frontend
+
+·····················································
+
+ Test Files  6 passed (6)
+      Tests  53 passed (53)
+   Start at  12:14:20
+   Duration  1.14s (transform 442ms, setup 0ms, collect 865ms, tests 145ms, environment 2.98s, prepare 1.22s)
+

@@ -1,0 +1,22 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> fullproof@1.1.0 test
+> vitest run
+
+
+ RUN  v3.2.7 /workspace/scratch/76c8d54c68dc/fullproof-role-workspace/frontend
+
+ ✓ tests/signing.test.ts (5 tests) 5ms
+ ✓ tests/roles.test.ts (3 tests) 4ms
+ ✓ tests/mock.test.ts (12 tests) 50ms
+ ✓ tests/integrity.test.ts (7 tests) 16ms
+ ✓ tests/api.test.ts (8 tests) 12ms
+ ✓ tests/alignment.test.ts (18 tests) 25ms
+ ✓ tests/workspace.test.ts (5 tests) 633ms
+   ✓ enters each role and returns home without deleting case data  365ms
+
+ Test Files  7 passed (7)
+      Tests  58 passed (58)
+   Start at  13:48:26
+   Duration  1.97s (transform 707ms, setup 0ms, collect 1.38s, tests 745ms, environment 2.68s, prepare 1.10s)
+

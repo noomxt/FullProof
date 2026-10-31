@@ -1,0 +1,15 @@
+{
+  "pass": true,
+  "scope": "Linux shared-host launcher on explicit loopback address, reused installed dependencies, fixture AI and real local chain",
+  "checks": [
+    "--share startup",
+    "public address file written without secrets",
+    "shared frontend/API readiness",
+    "public-address override"
+  ],
+  "not_tested": [
+    "fresh Windows installation",
+    "real Gemini",
+    "external LAN or public hosting"
+  ]
+}

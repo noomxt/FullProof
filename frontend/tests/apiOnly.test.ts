@@ -1,0 +1,21 @@
+import {createElement as h} from 'react';
+import {MemoryRouter} from 'react-router-dom';
+import {cleanup,render,screen} from '@testing-library/react';
+import {afterEach,it,expect,vi} from 'vitest';
+import App from '../src/App';
+import {isMockMode} from '../src/api';
+afterEach(()=>{cleanup();vi.unstubAllGlobals()});
+it('keeps API connection failure visible without offering mode switches or fixture cases',async()=>{
+ localStorage.clear();localStorage.setItem('fullproof.service.mode','mock');
+ vi.stubGlobal('isSecureContext',true);vi.stubGlobal('scrollTo',()=>{});
+ vi.stubGlobal('matchMedia',()=>({matches:true,addEventListener:()=>{},removeEventListener:()=>{}}));
+ vi.stubGlobal('fetch',vi.fn().mockRejectedValue(Error('offline')));
+ render(h(MemoryRouter,{initialEntries:['/workspace']},h(App)));
+ await screen.findByRole('alert');
+ expect(isMockMode()).toBe(false);
+ expect(screen.getByRole('button',{name:'연결 재시도'})).toBeTruthy();
+ expect(screen.queryByText('연결 설정',{exact:true})).toBeNull();
+ expect(screen.queryByLabelText('실행 모드')).toBeNull();
+ expect(screen.queryByRole('button',{name:'로컬 확인 모드로 전환'})).toBeNull();
+ expect(screen.queryByRole('link',{name:'실종 사건 · 안산 중앙'})).toBeNull();
+});

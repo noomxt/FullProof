@@ -1,0 +1,17 @@
+{
+  "pass": true,
+  "scope": "Two local frontend processes + real backend/Hardhat, fixture AI, no Gemini key on client",
+  "checks": [
+    "keyless client startup and upstream health check",
+    "client API proxy reaches shared server",
+    "same server case visible from both clients",
+    "read-only RPC proxy supports wallet discovery",
+    "RPC transaction submission blocked"
+  ],
+  "not_tested": [
+    "two separate Windows PCs",
+    "LAN firewall/router",
+    "actual Gemini calls",
+    "public internet hosting"
+  ]
+}
