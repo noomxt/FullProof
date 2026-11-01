@@ -65,7 +65,7 @@ async def disable_legacy_verdict_routes(request, call_next):
     return await call_next(request)
 
 ROOT = Path(__file__).resolve().parent
-ABI_PATH = ROOT / "artifacts/contracts/ChainOfInvestigation.sol/ChainOfInvestigation.json"
+ABI_PATH = ROOT / "abi/ChainOfInvestigation.json"
 w3 = Web3(Web3.HTTPProvider(os.getenv("RPC_URL", "http://127.0.0.1:8545")))
 CONTRACT_ADDRESS = os.getenv("CONTRACT_ADDRESS", "")
 contract = None
