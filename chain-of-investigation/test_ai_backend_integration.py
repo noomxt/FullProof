@@ -162,6 +162,16 @@ class BackendIntegrationTests(unittest.TestCase):
         return result
 
 
+    def test_verification_lookup_returns_stored_result(self):
+        claim, proofs = self.seed()
+        result = self.verify(claim, proofs, 'SUPPORTED')
+        response = self.http.get('/api/v1/verifications/' + result['verification_id'])
+        self.assertEqual(response.status_code, 200, response.text)
+        data = response.json()['data']
+        self.assertEqual(data['verification_hash'], result['verification_hash'])
+        self.assertEqual(data['verdict'], 'SUPPORTED')
+        self.assertEqual(self.http.get('/api/v1/verifications/NOT-FOUND').status_code, 404)
+
     def test_persistence_after_process_restart(self):
         import subprocess
         import sys

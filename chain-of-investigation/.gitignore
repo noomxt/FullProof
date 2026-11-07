@@ -47,3 +47,5 @@ checkpoint-backup.local.json
 # Isolated integration node output includes public development keys.
 node.local.log
 test-tmp/
+
+main_checkpoint_backup.local.py

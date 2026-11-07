@@ -35,6 +35,8 @@ def extract_v11(claim, *, client=None):
         renamed.append(dict(action_type=action['action_type'],
                             action_result=action['status_claim'], target_id=action['target_id'],
                             occurred_at=timestamp(action['claimed_time']).strftime('%Y-%m-%dT%H:%M:%SZ') if action.get('claimed_time') else None,
+                            occurred_date=action.get('occurred_date'),
+                            occurred_time=action.get('occurred_time'),
                             source_excerpt=action['source_text']))
     failed = parsed.get('parse_status') == 'FAILED'
     review = failed or len(renamed) != 1 or parsed.get('parse_status') != 'SUCCESS'

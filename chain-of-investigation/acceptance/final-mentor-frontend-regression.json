@@ -1,0 +1,122 @@
+{
+  "chain_id": 31337,
+  "contract": "0x870526b7973b56163a6997bB7C886F5E4EA53638",
+  "live_ai": false,
+  "scenarios": [
+    {
+      "case": "AI-INTEGRATION-6e845bc8fb23",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0xcb2ad3c73e67b6a78c7f07bd1af3fb94653ae5283d895f17ba2b6a66471bdff8",
+      "tx_hash": "3894172bcbfd20c6ff20e1618f4e7b56df9c5f96cd3e4d7b7a8c151428bf5974",
+      "block_number": 196
+    },
+    {
+      "case": "AI-INTEGRATION-90f4381a6bc6",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0x09524f6fac2c7d67e093c2aa7873f324c508cd1eccbdf8c40d1521033d654fa4",
+      "tx_hash": "7b7f9c9299dfb7f7b7615dcc3ce0074fa6257259c2287be79cd54e45a5968a0a",
+      "block_number": 205
+    },
+    {
+      "case": "AI-INTEGRATION-90f4381a6bc6",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0x09524f6fac2c7d67e093c2aa7873f324c508cd1eccbdf8c40d1521033d654fa4",
+      "tx_hash": "7b7f9c9299dfb7f7b7615dcc3ce0074fa6257259c2287be79cd54e45a5968a0a",
+      "block_number": 205
+    },
+    {
+      "case": "AI-INTEGRATION-9488b0444057",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0x7313deee544bbe1382e7209b5620928256c679ad905c795debab9799d7200bd3",
+      "tx_hash": "d0b4042e95c809db746795f4d39290827cd5d3557a6376c265a4cae838e146f9",
+      "block_number": 210
+    },
+    {
+      "case": "AI-INTEGRATION-99fe91d3cf14",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0xdeaeac71a944fae643cdd0875bd0cdb82366dc93156925bd37f1b5a96f3955b0",
+      "tx_hash": "17e398aabd5aff627d7f0f1341fec99de05e6a45c591c27211ccf3f5370f9799",
+      "block_number": 215
+    },
+    {
+      "case": "AI-INTEGRATION-c4b8d08d9f7f",
+      "verdict": "INSUFFICIENT",
+      "verification_hash": "0x60fe62f886ea9d85ebb42f3631824738de4776eb927139be2bed22763b0a58a9",
+      "tx_hash": "b5a7ee5ee48486609d256be2f3abebb8e80e63fe640320308ae47fd2526b2a20",
+      "block_number": 222
+    },
+    {
+      "case": "AI-INTEGRATION-c4b8d08d9f7f",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0xbf279f49c5e0e5a7b343008af672a933cb4e79656f74d1e7a3fed409b204bbcc",
+      "tx_hash": "b71a39e3f29d7ec29690fcb6b70868544b84e6387d4204dffe63c9e2ffe4afd0",
+      "block_number": 223
+    },
+    {
+      "case": "AI-INTEGRATION-c0e3778cf136",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0x4f6c010881fe2928d96423f8ddd5d50d0e6be592d2bb4065e35698c1fb0f638d",
+      "tx_hash": "421cf904c7bb51234d110d1fb783697eabc8c04f387c47d8b308ba3ee06cb25c",
+      "block_number": 228
+    },
+    {
+      "case": "AI-INTEGRATION-c0e3778cf136",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0x38ff714cce71d7baad03060523c5239221fb27ce704ef9c5ddbcb1d449db77b6",
+      "tx_hash": "cfb6dacd577ce0c6d5626c72c45aa34795cf07dcfea993dd6660bb8efc739612",
+      "block_number": 231
+    },
+    {
+      "case": "AI-INTEGRATION-e2712abf1892",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0x3dc1e524ec22e893f05bcc4067f1e21a85df104d4d7ab364ae1eb49e23cf2c48",
+      "tx_hash": "0x7e1e1242a5f43670bec76e154650389512a48d405ce08059902fdaf5da9d6595",
+      "block_number": 236
+    },
+    {
+      "case": "AI-INTEGRATION-e2712abf1892",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0x3dc1e524ec22e893f05bcc4067f1e21a85df104d4d7ab364ae1eb49e23cf2c48",
+      "tx_hash": "0x7e1e1242a5f43670bec76e154650389512a48d405ce08059902fdaf5da9d6595",
+      "block_number": 236
+    },
+    {
+      "case": "AI-INTEGRATION-cd96ccb91811",
+      "verdict": "SUPPORTED",
+      "verification_hash": "0xbfa464c7b4223ba68634331e1ba8304eb5dbab3bea27bd9e45504ce822ef0c2c",
+      "tx_hash": "78c4c5c153e38610167bdf6fedfdf768de8c16b58db75a385f24420c1f70aa7e",
+      "block_number": 241
+    },
+    {
+      "case": "AI-INTEGRATION-24c2ec76f22b",
+      "verdict": "INSUFFICIENT",
+      "verification_hash": "0x4428a15331ec0b5071c4fc7a18b0f9475f37623a353dcc9a72c4ae8b71617b2a",
+      "tx_hash": "606a66248b4e49f5b9cf6e08da9117f9745113070c8a6032bd842ab04ccbe58a",
+      "block_number": 247
+    },
+    {
+      "case": "OTHER-CASE-b81a7e9c82c04a0ba63808cf1e4dc8a1",
+      "verdict": "INSUFFICIENT",
+      "verification_hash": "0xe49b6c5bbb2bde2d8aab277047b7a29a2c135999441f2ff3984d93832eb56713",
+      "tx_hash": "32d6ed65f70d61aaa4f2b27c996d742a802ca1790f57fbd1a2e0eaaa4468fcc3",
+      "block_number": 251
+    }
+  ],
+  "extractions": [],
+  "executed_tests": [
+    "test_ai_backend_integration.BackendIntegrationTests.runTest",
+    "test_ai_backend_integration.BackendIntegrationTests.runTest",
+    "test_ai_backend_integration.BackendIntegrationTests.runTest",
+    "test_ai_backend_integration.BackendIntegrationTests.runTest",
+    "test_ai_backend_integration.BackendIntegrationTests.runTest",
+    "test_ai_backend_integration.BackendIntegrationTests.runTest",
+    "test_ai_backend_integration.BackendIntegrationTests.runTest",
+    "test_ai_backend_integration.BackendIntegrationTests.runTest",
+    "test_ai_backend_integration.BackendIntegrationTests.runTest",
+    "test_ai_backend_integration.BackendIntegrationTests.runTest",
+    "test_ai_backend_integration.BackendIntegrationTests.runTest",
+    "test_ai_backend_integration.BackendIntegrationTests.runTest",
+    "test_ai_backend_integration.BackendIntegrationTests.runTest"
+  ],
+  "failed_tests": []
+}

@@ -1,118 +1,68 @@
-<div align="center">
+# FullProof v1.1 — final-mentor-v11 프론트 연결본
 
-# 🔎 FullProof
+공식 기준: `noomxt/FullProof`의 `final-mentor-v11`, 커밋 `7998973a84f72e7c96ddb7f295c00e81fb6643d8`.
+기존 Team_Aligned 대신 이 버전을 새 폴더에서 사용하세요. 공식 백엔드·AI·컨트랙트 소스는 그대로 사용하고 프론트엔드 요청·응답 처리를 맞췄습니다. GitHub에 자동 푸시하거나 다른 브랜치를 병합하지 않았습니다.
 
-### 수사했다는 기록이 아니라, 수사했다는 증거.
+## 실행
 
-AI와 블록체인을 활용해 수사 기록의 주장(Claim)과  
-기관의 수행 증빙(Proof)을 교차 검증하는 수사 절차 검증 시스템
+Node.js 22.13 이상, Python 3.12를 권장합니다. Windows PowerShell에서 이 README와 `start_connected.py`가 있는 폴더를 여세요.
 
-![Status](https://img.shields.io/badge/status-planning-F59E0B?style=for-the-badge)
-![AI](https://img.shields.io/badge/AI-semantic%20verification-8B5CF6?style=for-the-badge)
-![Blockchain](https://img.shields.io/badge/blockchain-EVM-3C3C3D?style=for-the-badge)
-
-</div>
-
----
-
-## 💡 프로젝트 소개
-
-기존의 Chain of Custody가 확보된 증거의 위·변조 여부를 검증한다면, FullProof의 Chain of Investigation은 그 증거를 확보하기 위한 수사행위가 실제로 수행되었는지를 검증합니다.
-
-> “증거가 바뀌지 않았는가?”를 넘어  
-> “필요한 수사행위를 실제로 수행했는가?”를 확인합니다.
-
-현재 **BLOCK AI 26 해커톤** 출품을 목표로 MVP를 설계하고 있습니다.
-
-## 🚨 해결하려는 문제
-
-| 문제 | 설명 |
-| --- | --- |
-| 🔴 **Claim-Proof Mismatch** | 수행했다고 기록했지만 증빙이 없거나 기록과 실제 증빙이 일치하지 않는 경우 |
-| ⏳ **Time-Critical Evidence Miss** | 조치가 지연되어 CCTV 등 시한성 증거가 소멸할 위험이 있는 경우 |
-
-## ✨ 핵심 솔루션
-
-1. 🗂️ 사건 유형에 맞는 필수 수사 절차를 구성합니다.
-2. ✍️ 담당자가 수행한 수사행위를 **Claim**으로 기록합니다.
-3. 🏢 관계 기관이 수행 증빙인 **Proof**를 발행하고 전자서명합니다.
-4. 🤖 AI와 규칙 기반 엔진이 Claim과 Proof를 교차 검증합니다.
-5. ⛓️ Proof 해시와 검증 결과를 블록체인에 기록합니다.
-6. 📊 관리자가 이상 징후와 시한성 증거 경고를 확인합니다.
-
-> [!IMPORTANT]
-> AI는 이상 징후를 탐지하고 경고하는 역할만 수행합니다. 사건 종결, 책임 소재 또는 범죄 혐의에 관한 최종 판단은 항상 사람이 담당합니다.
-
-## 🧪 MVP 데모 시나리오
-
-| 시나리오 | 상황 | 결과 |
-| --- | --- | --- |
-| ✅ 정상 수사 | Claim과 기관 Proof의 대상·행위·시간이 일치 | `VERIFIED` |
-| ❌ 기록 불일치 | Claim에 대응하는 Proof가 없거나 대상이 다름 | `CLAIM_PROOF_MISMATCH` |
-| 🚨 시한성 증거 | CCTV가 미확보 상태이며 보존기한이 임박 | `HIGH_PRIORITY` |
-
-## 🏗️ 시스템 구조
-
-```text
-사건 관리 시스템
-       ↓
-수사 절차 Template Engine
-       ↓
-AI Investigation Proof Engine
- ├─ Semantic Matching
- └─ Rule Validation
-       ↓
-Verification Result
-       ↓
-Smart Contract / Investigation Ledger
-       ↓
-관리자 Dashboard
+```powershell
+py start_connected.py --fixture
 ```
 
-## 🛠️ 기술 스택
+처음에는 npm·Python 의존성을 설치하고 컨트랙트를 컴파일·배포합니다. 이후 `http://127.0.0.1:5173`으로 접속하고 **시연 설정 → 팀 API 연결**을 선택하세요. 기존 5173·8000 서버가 실행 중이라면 이전 실행 창에서 Ctrl+C로 종료하세요. 기존 체인·DB를 자동 삭제하지 않습니다.
 
-| 영역 | 기술 |
-| --- | --- |
-| 🖥️ Frontend | React |
-| ⚙️ Backend | FastAPI, Python |
-| 🤖 AI | LLM 또는 Embedding 기반 Semantic Matching |
-| ✅ Rule Engine | Python |
-| ⛓️ Blockchain | Solidity, EVM Testnet, ethers.js |
-| 🗄️ Database | PostgreSQL 또는 Firebase |
-| 🔐 Authentication | 기관별 Wallet Signature |
+`--fixture`는 고정 AI 추출을 사용하며 외부 Gemini 요청이 없습니다. 백엔드와 Hardhat 거래는 실제 로컬 실행이고, 화면의 기관·매핑·관리자 서명에는 실제 MetaMask 확장이 필요합니다. 역할 선택은 실제 인증이 아닙니다.
 
-## 🎯 MVP 구현 범위
+실제 Gemini를 사용하려면 로컬에서만 키를 설정하세요.
 
-- [ ] 실종사건 수사 절차 템플릿
-- [ ] AI 기반 수사 STEP 추천
-- [ ] 담당자 Claim 등록
-- [ ] Mock 기관 Proof 발행
-- [ ] 기관 Wallet 전자서명
-- [ ] Claim-Proof 의미 비교 및 규칙 검증
-- [ ] 검증 결과 테스트넷 기록
-- [ ] 관리자용 불일치 알림
-- [ ] CCTV 보존기한 경고
+```powershell
+py configure_ai.py
+py start_connected.py --live
+```
 
-## 🔐 개인정보 보호
+키는 `chain-of-investigation/.env`의 `GEMINI_API_KEY`에만 저장하며 Git에 올리지 않습니다. AI가 실제로 호출됐는지는 서버 응답·로그로 확인하세요. `--live`의 외부 호출은 이 배포본 제작 과정에서 테스트하지 않았습니다.
 
-통화기록 원문, 위치정보, CCTV 영상과 사건기록은 블록체인에 직접 저장하지 않습니다.
+프론트만 가상 시연하려면:
 
-민감정보는 암호화된 오프체인 저장소에 보관하고, 블록체인에는 Proof Hash, 기관 ID, 전자서명, 발행 시각과 검증 결과 등 최소한의 정보만 기록합니다.
+```powershell
+py start_frontend.py
+```
 
-## 🚧 개발 상태
+그 후 **프론트엔드 Mock** 모드를 선택하세요. Mock은 가상 서명·판정·저장으로 실제 체인 기록과 분리됩니다.
 
-**Planning & Early Development**
+## 화면 테마
 
-해커톤 MVP에서는 실제 기관 시스템이나 개인정보를 사용하지 않습니다. Mock 데이터와 기관별 테스트 Wallet을 이용해 다기관 환경을 시뮬레이션합니다.
+상단의 **다크 모드 / 라이트 모드** 버튼으로 어두운 배경과 흰색 배경을 전환합니다. 선택은 브라우저에 저장되어 새로고침 후에도 유지됩니다. 기본값은 라이트 모드입니다. 로고 원본 색상은 유지합니다.
 
-## ⚖️ Disclaimer
+## 변경 내용
 
-FullProof는 해커톤을 위한 프로토타입이며 어떠한 수사기관과도 관련이 없습니다. 법적·징계적·수사상 판단을 자동으로 내리는 용도로 사용할 수 없습니다.
+- 지갑·기관·관리자 설정은 `/api/v1/frontend/status`에서 읽습니다.
+- 무결성 원문은 `/api/v1/verifications/{id}/integrity-data`에서 받아 브라우저에서 JCS/SHA-256을 다시 계산합니다.
+- 검증은 `POST /api/v1/verification-requests`에 공식 Claim 참조·Proof 목록을 전달합니다.
+- 처리 중에는 `GET /api/v1/verification-requests/{id}`로 조회하고 서버 완료·실패·상태 불명확을 구분합니다.
+- 새로고침 후 사건의 **검증 요청 처리 상태 → 기존 요청 상태 조회**로 이어서 확인합니다. 자동 POST 재시도는 없습니다.
+- 결과 다시 조회도 위 상태 API의 실제 완료 `result`를 사용합니다. 이 공식 커밋에는 `GET /api/v1/verifications/{id}`가 없습니다.
+- 서버의 기관 EIP-712, 매핑·관리자·종결 personal_sign 및 종결 규칙은 바꾸지 않았습니다.
 
----
+이전 Team_Aligned의 `frontend_integrity.py`, 장애 진단 코드, 별도 판정 캐시는 사용하지 않습니다. 이 버전의 `mentor_support.py`는 공식 브랜치에 포함된 서버 구현입니다.
 
-<div align="center">
+## 구조
 
-**FullProof · BLOCK AI 26**
+```text
+frontend/src/official.ts             공식 API 어댑터
+frontend/src/verificationRequests.ts 요청 저장·진행 조회·복귀
+frontend/src/App.tsx                 사건 목록·사건별 업무·처리 상태 화면
+frontend/src/signing.ts              공식 메시지 형식
+frontend/src/wallet.ts               MetaMask 연결·계정·네트워크 확인
+frontend/src/integrity.ts            브라우저 해시 재계산
+frontend/tests/                      프론트 테스트
+chain-of-investigation/              공식 브랜치 백엔드·AI·컨트랙트
+local-tools/                        별도 로컬 실행·배포 도구
+start_connected.py                  연결 실행 도구
+configure_ai.py                     로컬 키 입력 도구
+docs/                               연동·시연·테스트·출처 문서
+```
 
-</div>
+상세 사항은 `docs/FRONTEND_ALIGNMENT.md`, `docs/DEMO.md`, `docs/TEST_RESULTS.md`를 확인하세요.

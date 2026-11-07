@@ -126,6 +126,29 @@ class ContractTests(unittest.TestCase):
                 self.assertEqual(result['claim_ref']['claim_hash'], self.claim['claim_hash'])
                 self.assertEqual(args, original)
 
+    def test_database_operations_close_connections(self):
+        import sqlite3
+        import tempfile
+        import database
+        from pathlib import Path
+        connections = []
+        original = database.get_connection
+
+        def track_connection():
+            connection = original()
+            connections.append(connection)
+            return connection
+
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(database, 'DB_PATH', Path(directory) / 'cases.db'):
+                with patch.object(database, 'get_connection', side_effect=track_connection):
+                    database.init_db()
+                    database.save_case(dict(case_id='CLOSE-TEST', steps=[]))
+                    self.assertIn('CLOSE-TEST', database.load_cases())
+                for connection in connections:
+                    with self.assertRaises(sqlite3.ProgrammingError):
+                        connection.execute('SELECT 1')
+
     def test_http_extract_uses_stored_claim_and_version(self):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
@@ -148,7 +171,7 @@ class ContractTests(unittest.TestCase):
             self.assertEqual(result.status_code, 200, result.text)
             self.assertTrue(result.json()['success'])
             structured = result.json()['data']
-            self.assertEqual(structured['actions'], [action])
+            self.assertEqual(structured['actions'], [{**action, 'occurred_date': '2026-10-18', 'occurred_time': '14:00:00'}])
             self.claim['structured_claim'] = structured
             verified = http.post('/api/v1/verifications', json={})
             self.assertEqual(verified.json()['data']['verdict'], 'SUPPORTED')

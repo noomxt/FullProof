@@ -1,0 +1,29 @@
+{
+  "chain_id": 31337,
+  "contract": "0x0000000000000000000000000000000000001234",
+  "data": {
+    "review_status": "ACCEPTED",
+    "reason_code": null,
+    "reason_text": "최신 증빙 확인\n승인 \"완료\"",
+    "signer_address": "0x0000000000000000000000000000000000000001",
+    "nonce": "1234567890abcdef",
+    "deadline": 1800000000
+  },
+  "close": {
+    "reason": "필수 수사 완료",
+    "signer_address": "0x0000000000000000000000000000000000000001",
+    "nonce": "1234567890abcdef",
+    "deadline": 1800000000
+  },
+  "mapping": {
+    "mapping_id": "MAP-001",
+    "claim_id": "CL-001",
+    "claim_version": 2,
+    "proof_id": "PR-001",
+    "proof_version": 1,
+    "confirmation_nonce": "abcdef1234567890"
+  },
+  "review_expected": "{\"chain_id\":31337,\"contract_address\":\"0x0000000000000000000000000000000000001234\",\"deadline\":1800000000,\"nonce\":\"1234567890abcdef\",\"purpose\":\"FullProof v1.1 Administrator Review\",\"reason_code\":null,\"reason_text\":\"최신 증빙 확인\\n승인 \\\"완료\\\"\",\"review_status\":\"ACCEPTED\",\"signer_address\":\"0x0000000000000000000000000000000000000001\",\"verification_hash\":\"0x1111111111111111111111111111111111111111111111111111111111111111\",\"verification_id\":\"V1\"}",
+  "close_expected": "{\"case_id\":\"C1\",\"chain_id\":31337,\"contract_address\":\"0x0000000000000000000000000000000000001234\",\"deadline\":1800000000,\"nonce\":\"1234567890abcdef\",\"purpose\":\"FullProof v1.1 Case Closure\",\"reason\":\"필수 수사 완료\",\"signer_address\":\"0x0000000000000000000000000000000000000001\"}",
+  "mapping_expected": "FullProof v1.1 Mapping Confirmation\ncase_id=C1\nmapping_id=MAP-001\nclaim_id=CL-001\nclaim_version=2\nclaim_hash=0x1111111111111111111111111111111111111111111111111111111111111111\nproof_id=PR-001\nproof_version=1\nproof_hash=0x2222222222222222222222222222222222222222222222222222222222222222\nevidence_source_sha256=0x3333333333333333333333333333333333333333333333333333333333333333\nevidence_note=원본 통화 ID 확인 · 가상 자료\nnonce=abcdef1234567890"
+}

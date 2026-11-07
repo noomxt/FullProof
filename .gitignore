@@ -21,3 +21,13 @@ cache/
 # Python virtual environments
 .venv/
 venv/
+# Local frontend integration
+!.env.example
+dist/
+*.db
+*.db-*
+.local-run/
+.checks/
+local-demo.json
+*.tsbuildinfo
+test-tmp/

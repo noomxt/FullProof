@@ -1,0 +1,43 @@
+{
+  "success": true,
+  "data": {
+    "schema_version": "1.1",
+    "verification_id": "VERIFY-001",
+    "case_id": "CASE-001",
+    "step_id": 0,
+    "claim_ref": {
+      "claim_id": "CLAIM-001",
+      "claim_version": 1,
+      "claim_hash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "proof_refs": [
+      {
+        "proof_id": "PROOF-001",
+        "proof_version": 1,
+        "proof_hash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    ],
+    "processing_status": "COMPLETED",
+    "verdict": "CONTRADICTED",
+    "conflicts": [
+      {
+        "field": "action_result",
+        "claim_value": "SUCCESS",
+        "proof_value": "FAIL",
+        "reason_code": "RESULT_MISMATCH"
+      }
+    ],
+    "missing_information": [],
+    "reason_text": "수사 기록은 통화 성공을 주장하지만 기관 Proof에는 연결 실패로 기록되어 있습니다.",
+    "evidence_refs": [
+      "PROOF-001"
+    ],
+    "review_required": true,
+    "decision_policy_version": "policy-v1",
+    "policy_hash": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "proof_refs_hash": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "verification_hash": null,
+    "verification_tx_hash": null
+  },
+  "error": null
+}

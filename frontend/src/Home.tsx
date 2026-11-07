@@ -1,0 +1,11 @@
+import {useState} from 'react';
+import {ArrowRight,Building2,ShieldCheck,UserRound,LoaderCircle} from 'lucide-react';
+import type {Role} from './api';
+import BrandLogo from './BrandLogo';
+import ThemeToggle from './ThemeToggle';
+const roles=[{role:'OFFICER' as Role,name:'수사담당자',description:'수사기록 등록 · 증빙 연결 · 검증 요청',note:'수사기록과 원천 증빙을 대조합니다.',Icon:UserRound},{role:'AGENCY' as Role,name:'원천기관',description:'증빙 준비 · 기관 서명 · 제공 이력',note:'기관 제출 증빙에 전자서명합니다.',Icon:Building2},{role:'ADMIN' as Role,name:'관리자',description:'검증 근거 검토 · 승인 · 사건 종결',note:'검증 결과를 검토하고 종결 요건을 확인합니다.',Icon:ShieldCheck}];
+export default function Home({onEnter}:{onEnter:(role:Role)=>Promise<boolean>}){
+ const [pending,setPending]=useState<Role|null>(null),[error,setError]=useState('');
+ async function enter(role:Role){if(pending)return;setPending(role);setError('');try{if(!await onEnter(role))setError('업무 시스템에 연결하지 못했습니다. 서버 상태를 확인한 후 다시 시도하십시오.')}catch{setError('업무 시스템 연결 중 오류가 발생했습니다. 다시 시도하십시오.')}finally{setPending(null)}}
+ return <div className="home-shell"><header className="home-topbar"><a href="/" className="home-brand" aria-label="FullProof 홈"><BrandLogo/><span>수사행위 검증 플랫폼</span></a><div><span className="demo-pill">WORKSPACE</span><ThemeToggle/></div></header><main className="home-main"><div className="home-heading"><span className="eyebrow">FULLPROOF WORKSPACE</span><h1>업무 시스템 접속</h1><p>담당 업무를 선택하십시오.</p><p className="home-slogan">수사했다는 기록을, 확인 가능한 증명으로</p></div><div className="role-cards">{roles.map(({role,name,description,note,Icon},i)=><button className="role-card" key={role} disabled={pending!==null} onClick={()=>void enter(role)}><div className="role-art"><img src={'/art/'+role.toLowerCase()+'.webp'} alt=""/></div><div className="role-card-body"><div className="role-card-meta"><span className="role-card-icon"><Icon size={23}/></span><span>0{i+1} / 업무 데스크</span></div><h2>{name}</h2><p>{description}<br/>{note}</p><span className="role-enter">{pending===role?<><LoaderCircle className="spin" size={17}/>연결 중</>:<>{name} 업무 시작<ArrowRight size={17}/></>}</span></div></button>)}</div>{error&&<p role="alert" className="home-error">{error}</p>}<p className="home-disclosure">평가용 환경 · 모든 사건과 증빙은 가상 자료입니다.<br/>업무 선택은 로그인 및 권한 인증을 대신하지 않습니다.</p></main><footer className="home-footer">FullProof © 2026 <span>수사했다는 기록을, 확인 가능한 증명으로</span></footer></div>
+}

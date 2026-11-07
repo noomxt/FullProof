@@ -16,7 +16,7 @@ def get_connection():
 
 def init_db():
     """SQLite 테이블 생성"""
-    with get_connection() as conn:
+    with closing(get_connection()) as conn, conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS cases (
                 case_id TEXT PRIMARY KEY,
@@ -35,11 +35,36 @@ def init_db():
             )
         """)
 
+        # FullProof v1.1: 기관 Proof 원본 및 버전별 이력 보존
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS agency_proofs (
+                case_id TEXT NOT NULL,
+                step_id INTEGER NOT NULL,
+                agency TEXT NOT NULL,
+                proof_id TEXT NOT NULL,
+                proof_version INTEGER NOT NULL CHECK (proof_version >= 1),
+                proof_id_hash TEXT NOT NULL,
+                proof_hash TEXT NOT NULL,
+                original_json TEXT NOT NULL,
+                occurred_at INTEGER NOT NULL,
+                issued_at INTEGER NOT NULL,
+                tx_hash TEXT NOT NULL,
+
+                PRIMARY KEY (
+                    case_id,
+                    step_id,
+                    agency,
+                    proof_id,
+                    proof_version
+                )
+            )
+        """)
+
 
 
 def save_case(case):
     """사건 및 수사 단계 정보를 저장"""
-    with get_connection() as conn:
+    with closing(get_connection()) as conn, conn:
         conn.execute(
             """
             INSERT INTO cases (case_id, data)
@@ -56,7 +81,7 @@ def save_case(case):
 
 def load_cases():
     """저장된 사건 정보 전체 조회"""
-    with get_connection() as conn:
+    with closing(get_connection()) as conn, conn:
         rows = conn.execute(
             "SELECT case_id, data FROM cases"
         ).fetchall()
@@ -69,7 +94,7 @@ def load_cases():
 
 def save_checkpoint(checkpoint):
     """블록체인 체크포인트 저장"""
-    with get_connection() as conn:
+    with closing(get_connection()) as conn, conn:
         conn.execute(
             """
             INSERT INTO chain_checkpoints (
@@ -102,7 +127,7 @@ def save_checkpoint(checkpoint):
 
 def load_checkpoint(checkpoint_id):
     """저장된 체크포인트 조회"""
-    with get_connection() as conn:
+    with closing(get_connection()) as conn, conn:
         row = conn.execute(
             """
             SELECT * FROM chain_checkpoints
@@ -117,7 +142,7 @@ def load_checkpoint(checkpoint_id):
 def load_latest_case_checkpoint(case_id):
     """해당 사건의 최신 블록체인 체크포인트 조회"""
 
-    with get_connection() as conn:
+    with closing(get_connection()) as conn, conn:
         row = conn.execute(
             """
             SELECT *
@@ -133,7 +158,7 @@ def load_latest_case_checkpoint(case_id):
 def list_case_checkpoints(case_id):
     """특정 사건의 체크포인트 목록 조회"""
 
-    with get_connection() as conn:
+    with closing(get_connection()) as conn, conn:
         rows = conn.execute(
             """
             SELECT *

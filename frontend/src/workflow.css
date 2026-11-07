@@ -1,0 +1,10 @@
+.workflow-stages {grid-template-columns:repeat(7,minmax(0,1fr)); margin-top:16px}
+.workflow-stages button {flex-wrap:wrap; align-content:flex-start; text-align:left}
+.workflow-stages button strong {flex:1; min-width:64px}
+.workflow-stages button small {flex-basis:100%; color:var(--fp-muted)}
+.workflow-stages button[aria-current="step"] {outline:2px solid #6485c1; outline-offset:1px}
+.record-detail {max-width:100%; overflow-wrap:anywhere}
+.record-detail summary {cursor:pointer}
+.record-detail[open] {display:grid; gap:6px; justify-items:start}
+@media(max-width:1150px){.workflow-stages{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){.workflow-stages{grid-template-columns:repeat(2,minmax(0,1fr))}}

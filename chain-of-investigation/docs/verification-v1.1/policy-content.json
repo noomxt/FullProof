@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.1",
+  "policy_id": "CALL_VERIFICATION",
+  "policy_version": "policy-v1",
+  "required_fields": [
+    "action_result",
+    "action_type",
+    "target_id"
+  ],
+  "time_tolerance_seconds": 600,
+  "proof_mapping_required": true,
+  "semantic_analysis_required": false
+}

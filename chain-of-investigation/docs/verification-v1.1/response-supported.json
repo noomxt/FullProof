@@ -1,0 +1,36 @@
+{
+  "success": true,
+  "data": {
+    "schema_version": "1.1",
+    "verification_id": "VERIFY-003",
+    "case_id": "CASE-001",
+    "step_id": 0,
+    "claim_ref": {
+      "claim_id": "CLAIM-001",
+      "claim_version": 1,
+      "claim_hash": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "proof_refs": [
+      {
+        "proof_id": "PROOF-001",
+        "proof_version": 1,
+        "proof_hash": "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    ],
+    "processing_status": "COMPLETED",
+    "verdict": "SUPPORTED",
+    "conflicts": [],
+    "missing_information": [],
+    "reason_text": "연결이 명확한 유효 Proof가 필수 비교 조건과 통화 성공 주장을 뒷받침합니다.",
+    "evidence_refs": [
+      "PROOF-001"
+    ],
+    "review_required": false,
+    "decision_policy_version": "policy-v1",
+    "policy_hash": "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "proof_refs_hash": "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "verification_hash": null,
+    "verification_tx_hash": null
+  },
+  "error": null
+}

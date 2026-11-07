@@ -53,7 +53,7 @@ except ImportError:
         return {"case_id": case_id, "status": "UNAVAILABLE", "message": "AI module unavailable"}
 
 app = FastAPI(title="FullProof API", version="2.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5500", "http://127.0.0.1:5500",], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=["http://104.197.130.145:3000", "http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5500", "http://127.0.0.1:5500",], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 # Mentor follow-up: old agency-signed-verdict routes are no longer executable.
 @app.middleware("http")
 async def disable_legacy_verdict_routes(request, call_next):
@@ -2800,6 +2800,34 @@ def get_v11_verification_request(verification_id: str):
 def get_v11_integrity_data(verification_id: str):
     from mentor_support import integrity_data
     return v11_success(integrity_data(verification_id,current_core()))
+
+
+@app.get("/api/v1/verifications/{verification_id}")
+def get_v11_verification(verification_id: str):
+    result = V11_VERIFICATION_RESULTS.get(verification_id)
+
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Verification not found"
+        )
+
+    fields = (
+        "verification_id",
+        "case_id",
+        "step_id",
+        "processing_status",
+        "verdict",
+        "verification_hash",
+        "verification_tx_hash",
+        "policy_hash",
+    )
+
+    return v11_success({
+        key: result[key]
+        for key in fields
+        if key in result
+    })
 
 
 # ------------------------------------------------------------

@@ -20,14 +20,33 @@ from pydantic import BaseModel, ConfigDict, ValidationError, field_validator, Fi
 # UNKNOWN is a review fallback, never an inferred supported action.
 ActionType = Literal['PHONE_CALL', 'CCTV_REQUEST', 'CCTV_REVIEW', 'LOCATION_REQUEST', 'UNKNOWN']
 ActionResult = Literal['SUCCESS', 'FAIL', 'UNKNOWN']
-PROMPT_VERSION = 'extract-v1.1-prompt-v2'
+PROMPT_VERSION = 'extract-v1.1-prompt-v3'
 
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
 
 
-class ClaimAction(StrictModel):
+class PartialDateTime(StrictModel):
+    """Optional Korean-local display fields; never substitute for a full timestamp."""
+    occurred_date: str | None = None
+    occurred_time: str | None = None
+
+    @field_validator('occurred_date', 'occurred_time')
+    @classmethod
+    def validate_partial_datetime(cls, value, info):
+        if value is None:
+            return value
+        pattern, fmt = ((r'\d{4}-\d{2}-\d{2}', '%Y-%m-%d')
+                        if info.field_name == 'occurred_date'
+                        else (r'\d{2}:\d{2}:\d{2}', '%H:%M:%S'))
+        if not re.fullmatch(pattern, value):
+            raise ValueError('Invalid partial date/time format')
+        datetime.strptime(value, fmt)
+        return value
+
+
+class ClaimAction(PartialDateTime):
     action_type: ActionType
     target_id: str | None
     claimed_time: str | None
@@ -49,7 +68,7 @@ class ClaimExtraction(StrictModel):
     review_reasons: list[str]
 
 
-class ClaimActionV11(StrictModel):
+class ClaimActionV11(PartialDateTime):
     action_type: ActionType
     action_result: ActionResult
     target_id: str | None
@@ -117,7 +136,14 @@ occurred_at은 UTC YYYY-MM-DDTHH:MM:SSZ로 반환하세요.
 시간대가 없는 한국어 기록은 한국 표준시(UTC+09:00)로 해석하세요.
 시간대가 명시되면 해당 시간대를 적용하세요.
 예: 2026년 10월 18일 오후 2시(한국 시각)는 2026-10-18T05:00:00Z입니다.
-오늘/어제 등 상대 날짜나 날짜/시각 누락은 null입니다.
+occurred_date는 한국시간 기준 날짜 YYYY-MM-DD, occurred_time은 한국시간 HH:MM:SS입니다.
+날짜와 시각이 모두 명확하면 occurred_at과 일치하는 한국시간 날짜와 시각을 반환하세요.
+날짜만 명시되면 occurred_date만 채우고 occurred_time과 occurred_at은 null입니다.
+시각만 명시되면 한국시간임이 명확할 때 occurred_time만 채우고 날짜는 추측하지 마세요.
+시각을 자정으로 추측하지 마세요. 날짜 또는 시각이 빠지면 occurred_at은 null입니다.
+오늘/어제 등 상대 날짜는 기준 날짜가 없으므로 occurred_date와 occurred_at은 null입니다.
+예: '2024년 10월 10일 실종자와 통화에 성공했다'는 occurred_date='2024-10-10',
+occurred_time=null, occurred_at=null, target_id=null, action_result='SUCCESS'입니다.
 원문이 분 단위면 초는 표기상 00으로 정규화하며 실제 초 단위 정확도를 뜻하지 않습니다.
 전화했다는 표현만으로 연결 성공을 추측하지 마세요.
 action_result는 성공 명시=SUCCESS, 실패 명시=FAIL, 결과 미상=UNKNOWN입니다.
@@ -142,9 +168,15 @@ def _legacy_extraction(extraction):
         if action.occurred_at is not None:
             local_time = datetime.strptime(action.occurred_at, '%Y-%m-%dT%H:%M:%SZ').replace(
                 tzinfo=timezone.utc).astimezone(timezone(timedelta(hours=9))).strftime('%Y-%m-%d %H:%M:%S')
+            if action.occurred_date is not None and action.occurred_date != local_time[:10]:
+                raise ValueError('Date conflicts with occurred_at')
+            if action.occurred_time is not None and action.occurred_time != local_time[11:]:
+                raise ValueError('Time conflicts with occurred_at')
         actions.append(dict(action_type=action.action_type, target_id=action.target_id,
                             claimed_time=local_time, status_claim=action.action_result,
-                            source_text=action.source_excerpt))
+                            source_text=action.source_excerpt,
+                            occurred_date=local_time[:10] if local_time else action.occurred_date,
+                            occurred_time=local_time[11:] if local_time else action.occurred_time))
     return dict(actions=actions, review_reasons=extraction.review_reasons)
 
 
@@ -165,6 +197,10 @@ def _finalize(raw_text, extraction):
             missing.append('target_id')
         if action.claimed_time is None:
             missing.append('claimed_time')
+            if action.occurred_date is None:
+                missing.append('occurred_date')
+            if action.occurred_time is None:
+                missing.append('occurred_time')
         if action.status_claim == 'UNKNOWN':
             missing.append('status_claim')
         item['missing_fields'] = missing

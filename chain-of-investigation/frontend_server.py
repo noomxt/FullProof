@@ -5,6 +5,7 @@ Run one Uvicorn worker. Not production authentication or a recovery service.
 import json
 import os
 import sqlite3
+from contextlib import closing
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,7 +18,7 @@ import main as core
 
 app = core.app
 JOURNAL = Path(os.getenv('FULLPROOF_UI_AUDIT_PATH', str(Path(__file__).with_name('frontend-audit.db'))))
-with sqlite3.connect(JOURNAL) as db:
+with closing(sqlite3.connect(JOURNAL)) as db, db:
     db.execute('CREATE TABLE IF NOT EXISTS audit (namespace TEXT, path TEXT, payload TEXT)')
 
 
@@ -44,7 +45,7 @@ def receipt_status(tx):
 
 
 def audit_rows():
-    with sqlite3.connect(JOURNAL) as db:
+    with closing(sqlite3.connect(JOURNAL)) as db, db:
         return [(p, json.loads(v)) for p, v in db.execute('SELECT path,payload FROM audit WHERE namespace=?', (namespace(),))]
 
 
@@ -59,7 +60,7 @@ async def journal_success(request, call_next):
         try:
             payload = json.loads(body)
             value = payload.get('data', payload)
-            with sqlite3.connect(JOURNAL) as db:
+            with closing(sqlite3.connect(JOURNAL)) as db, db:
                 db.execute('INSERT INTO audit VALUES(?,?,?)', (namespace(), path, json.dumps(value, ensure_ascii=False)))
         except Exception:
             # Official action may already have succeeded. Preserve the response;
@@ -84,7 +85,7 @@ def public_config():
                      agency_nonce=str(core.contract.functions.agencyNonces(core.Web3.to_checksum_address(agency)).call()) if agency else None,
                      admin_address=core.contract.functions.admin().call(),
                      reviewer_addresses=[v.strip() for v in os.getenv('V11_MAPPING_REVIEWERS', '').split(',') if v.strip()],
-                     rpc_url=os.getenv('RPC_URL', 'http://127.0.0.1:8545'), domain_version='2')
+                     rpc_url=os.getenv('UI_RPC_URL', 'http://104.197.130.145:8546/'), domain_version='2')
     return {'schema_version':'1.1', 'environment':'LOCAL_OFFICIAL_INTEGRATION', 'chain':chain,
             'ai':{'provider':'fixture' if FIXTURE else 'Gemini', 'is_simulated':FIXTURE,
                   'key_configured':bool(os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY'))},
@@ -229,3 +230,6 @@ if FIXTURE:
             return dict(schema_version='1.1',claim_id=claim['claim_id'],claim_version=claim['claim_version'],extraction_status='FAILED',actions=[],model_name='fixture-no-model',prompt_version='fixture-v1',review_required=True)
         return dict(schema_version='1.1',claim_id=claim['claim_id'],claim_version=claim['claim_version'],extraction_status='COMPLETED',actions=[dict(action_type='PHONE_CALL',action_result='SUCCESS',target_id='P001',occurred_at='2026-10-18T05:00:00Z',source_excerpt=text)],model_name='fixture-no-model',prompt_version='fixture-v1',review_required=False)
     module.extract_v11=fixture_extract
+
+from evidence_deadlines import make_router
+app.include_router(make_router(core.cases_db, namespace))

@@ -41,7 +41,8 @@ class ExtractionOutputTests(unittest.TestCase):
         original = deepcopy(claim)
         with patch('ai_provider.model_name', return_value='request-model'):
             result = extract_v11(claim, client=self.client())
-        self.assertEqual(result['actions'], [self.action])
+        self.assertEqual(result['actions'], [dict(self.action,
+            occurred_date='2026-10-18', occurred_time='14:00:00')])
         self.assertEqual(result['extraction_status'], 'COMPLETED')
         self.assertEqual(result['model_name'], 'request-model')
         self.assertEqual(result['prompt_version'], PROMPT_VERSION)
@@ -50,7 +51,8 @@ class ExtractionOutputTests(unittest.TestCase):
     def test_missing_values_not_invented(self):
         self.action.update(occurred_at=None, target_id=None, action_result='UNKNOWN')
         result = extract_v11(dict(claim_id='CL1', claim_version=1, claim_text=self.text), client=self.client())
-        self.assertEqual(result['actions'], [self.action])
+        self.assertEqual(result['actions'], [dict(self.action,
+            occurred_date=None, occurred_time=None)])
         self.assertTrue(result['review_required'])
         self.assertEqual(result['extraction_status'], 'NEEDS_REVIEW')
 
@@ -60,6 +62,39 @@ class ExtractionOutputTests(unittest.TestCase):
         result = extract_v11(dict(claim_id='CL1', claim_version=1, claim_text=self.text),
                              client=self.client(payload=payload))
         self.assertEqual(result['actions'][0]['occurred_at'], '2026-10-17T15:30:00Z')
+        self.assertEqual(result['actions'][0]['occurred_date'], '2026-10-18')
+        self.assertEqual(result['actions'][0]['occurred_time'], '00:30:00')
+
+    def test_date_only_survives_parser_and_v11_without_invented_time(self):
+        text = '2024년 10월 10일 실종자와 통화에 성공했으며 안전을 확인했다.'
+        payload = dict(actions=[dict(action_type='PHONE_CALL', action_result='SUCCESS',
+            target_id=None, occurred_at=None, occurred_date='2024-10-10',
+            occurred_time=None, source_excerpt=text)], review_reasons=[])
+        parsed = parse_claim_with_llm(text, client=self.client(payload))
+        self.assertEqual(parsed['actions'][0]['occurred_date'], '2024-10-10')
+        self.assertIsNone(parsed['actions'][0]['claimed_time'])
+        self.assertIn('occurred_time', parsed['actions'][0]['missing_fields'])
+        self.assertNotIn('occurred_date', parsed['actions'][0]['missing_fields'])
+        result = extract_v11(dict(claim_id='CL1', claim_version=1, claim_text=text),
+                             client=self.client(payload))
+        self.assertEqual(result['actions'], payload['actions'])
+        self.assertEqual(result['extraction_status'], 'NEEDS_REVIEW')
+        self.assertTrue(result['review_required'])
+
+    def test_invalid_partial_fields_rejected(self):
+        for field, value in [('occurred_date', '2024-02-30'),
+                             ('occurred_date', '2024-2-01'),
+                             ('occurred_time', '24:00:00'),
+                             ('occurred_time', '9:00:00')]:
+            with self.subTest(field=field, value=value), self.assertRaises(ValidationError):
+                ClaimActionV11(**dict(self.action, **{field: value}))
+
+    def test_inconsistent_full_and_partial_datetime_is_failed(self):
+        for fields in [dict(occurred_date='2026-10-19'), dict(occurred_time='15:00:00')]:
+            payload = dict(actions=[dict(self.action, **fields)], review_reasons=[])
+            result = parse_claim_with_llm(self.text, client=self.client(payload))
+            self.assertEqual(result['parse_status'], 'FAILED')
+            self.assertEqual(result['actions'], [])
 
     def test_invalid_utc_rejected(self):
         for value in ('2026-10-18 14:00:00', '2026-10-18T14:00:00+09:00',
